@@ -1,0 +1,6 @@
+{
+  "name": "LocalResearch AI",
+  "description": "Private local LLM chatbot with an integrated local vector database for academic papers and citations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
