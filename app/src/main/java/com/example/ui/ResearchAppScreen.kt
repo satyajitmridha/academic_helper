@@ -208,7 +208,9 @@ fun ResearchAppScreen(
                     models = hfModels,
                     isDownloading = false,
                     systemStatus = systemStatus,
-                    onDownloadModel = { viewModel.triggerHuggingFaceModelDownload(it) }
+                    onDownloadModel = { viewModel.triggerHuggingFaceModelDownload(it) },
+                    activeModelMode = activeModelMode,
+                    onSelectModelMode = { viewModel.setModelMode(it) }
                 )
             }
 
@@ -997,7 +999,9 @@ fun ModelsTab(
     models: List<HuggingFaceModel>,
     isDownloading: Boolean,
     systemStatus: String,
-    onDownloadModel: (String) -> Unit
+    onDownloadModel: (String) -> Unit,
+    activeModelMode: String,
+    onSelectModelMode: (String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -1104,12 +1108,19 @@ fun ModelsTab(
                                 )
                             }
                         } else {
+                            val isThisModelActive = activeModelMode.contains("Local") && activeModelMode.contains(model.name.substringBefore(" "))
+                            
                             Button(
-                                onClick = { onDownloadModel(model.repoId) },
+                                onClick = { 
+                                    if (model.status == "Completed") {
+                                        onSelectModelMode("Local Offline (${model.name})")
+                                    } else {
+                                        onDownloadModel(model.repoId) 
+                                    }
+                                },
                                 shape = RoundedCornerShape(10.dp),
-                                enabled = model.status != "Completed",
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (model.status == "Completed") ProfessionalSuccess else ProfessionalPrimary,
+                                    containerColor = if (isThisModelActive) ProfessionalSuccess else ProfessionalPrimary,
                                     disabledContainerColor = ProfessionalSecondary.copy(alpha = 0.5f)
                                 ),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
@@ -1119,12 +1130,12 @@ fun ModelsTab(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
-                                        imageVector = if (model.status == "Completed") Icons.Default.Check else Icons.Default.Refresh,
+                                        imageVector = if (isThisModelActive) Icons.Default.CheckCircle else if (model.status == "Completed") Icons.Default.PlayArrow else Icons.Default.Refresh,
                                         contentDescription = null,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
-                                        text = if (model.status == "Completed") "Downloaded" else "Download",
+                                        text = if (isThisModelActive) "Active" else if (model.status == "Completed") "Activate" else "Download",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )

@@ -261,7 +261,7 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                 
                 // Construct highly relevant local token-by-token stream
                 val responseBuilder = StringBuilder()
-                val targetResponse = generateLocalResponseText(userMessage, matchedChunks)
+                val targetResponse = generateLocalResponseText(userMessage, _activeModelMode.value, matchedChunks)
                 
                 val tokens = targetResponse.split(" ")
                 val placeholderMsgId = repository.insertMessage(
@@ -327,57 +327,107 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
     }
 
     // Local deterministic response constructor supporting real keyword matching
-    private fun generateLocalResponseText(query: String, chunks: List<DocumentChunk>): String {
-        val lowercaseQuery = query.lowercase().trim()
+    private fun generateLocalResponseText(query: String, activeModel: String, chunks: List<DocumentChunk>): String {
+        val q = query.lowercase().trim()
         
-        // If there are no local vector matches, answer beautifully using simulated pre-trained model parameters
-        if (chunks.isEmpty()) {
-            return when {
-                lowercaseQuery.contains("hello") || lowercaseQuery.contains("hi ") || lowercaseQuery.equals("hi") -> {
-                    "Hello! I am your local private research assistant, running entirely offline on your secure app sandbox. I can process your uploaded academic files via local vector embeddings, or answer general educational and scientific questions directly from my internal pre-trained parameters. How can I help you in your research today?"
-                }
-                lowercaseQuery.contains("regression") || lowercaseQuery.contains("linear") -> {
-                    "Linear regression is a foundational statistical method used to model the relationship between a scalar dependent variable 'Y' and one or more explanatory variables 'X'. It fits a linear equation of the form Y = β0 + β1*X + ε by minimizing the sum of squared differences (residuals). This allows quick, powerful offline estimation of trend coefficients and significance tests without cloud dependence."
-                }
-                lowercaseQuery.contains("neural") || lowercaseQuery.contains("deep learning") || lowercaseQuery.contains("network") -> {
-                    "Deep learning and artificial neural networks are computational structures inspired by biological brain pathways. They consist of layered node configurations (input, hidden, and output) wherein weights and biases are iteratively adjusted via backpropagation using gradient descent. This allows local representations to approximate highly non-linear functions for classification, language generation, and vision tasks."
-                }
-                lowercaseQuery.contains("machine learning") || lowercaseQuery.contains("ai") || lowercaseQuery.contains("artificial intelligence") -> {
-                    "Machine learning is a subset of artificial intelligence focusing on algorithms that learn from training datasets to make statistical predictions or decisions without explicit programming. Category styles include Supervised Learning (labeled target sets), Unsupervised Learning (clustering and dimensionality reduction), and Reinforcement Learning (policy rewards). It operates entirely through mathematical distributions."
-                }
-                lowercaseQuery.contains("quantum") || lowercaseQuery.contains("physics") -> {
-                    "Quantum mechanics is a fundamental theory in physics that describes the physical properties of nature at the atomic and subatomic scale. It departs from classical mechanics by introducing wave-particle duality, quantization of energy levels, the Heisenberg uncertainty principle, and superposition. These concepts are represented through complex wavefunctions solved locally via wave equation approximations."
-                }
-                lowercaseQuery.contains("gravity") || lowercaseQuery.contains("einstein") -> {
-                    "Gravity, in classical physics, is formulated by Isaac Newton as a mutual attractive force between two mass points proportional to the product of their masses and inversely proportional to the square of the distance between them. In general relativity (promulgated by Albert Einstein in 1915), gravity is described not as a force, but as a geometric property of spacetime distorted by mass and energy."
-                }
-                lowercaseQuery.contains("database") || lowercaseQuery.contains("sql") || lowercaseQuery.contains("vector") -> {
-                    "A database is an organized collection of structured information or data. Modern vector databases store multi-dimensional coordinate arrays representing semantic embeddings of texts, images, or audio. They employ similarity search metrics (like cosine distance or Euclidean dot products) to retrieve matching files or chunks instantly, which serves as the local retrieval layer of this application."
-                }
-                lowercaseQuery.contains("what is") || lowercaseQuery.contains("explain") || lowercaseQuery.contains("how") || lowercaseQuery.contains("why") -> {
-                    "That is an excellent academic inquiry! From an offline analytical perspective, this concept is understood as a systemic process optimized through structural parameters. In local model mode, my pre-trained weights evaluate token distributions to formulate a clear explanation. For precise source citations, you can also upload reference PDFs or text documents in your Library tab to generate local mathematical vector indices."
-                }
-                else -> {
-                    "Using the pre-trained weights of my locally downloaded model framework, I have formulated a comprehensive response to your query on '$query':\n\nThis scholarly subject represents a significant topic in scientific research, often analyzed using quantitative methodologies, control variables, and empirical testing frameworks. My local weights indicate that systematic optimization of these factors typically leads to improved predictive performance. For deeper evidence-backed citations, upload and index relevant studies in the Library tab so I can map them into your private local vector memory!"
-                }
+        // Determine selected model friendly name
+        val modelFriendlyName = when {
+            activeModel.contains("DeepSeek") -> "DeepSeek R1 Distill Qwen 1.5B"
+            activeModel.contains("Qwen") -> "Qwen 2.5 0.5B Chat"
+            activeModel.contains("Llama") -> "Meta Llama 3.2 1B"
+            activeModel.contains("Gemma") -> "Gemma 2B IT"
+            activeModel.contains("Phi") -> "Phi-3 Mini"
+            else -> "SmolLM 135M Chat"
+        }
+
+        // Generate simulated CoT thinking trace for DeepSeek
+        val thinkingPrefix = if (activeModel.contains("DeepSeek") || activeModel.contains("deepseek")) {
+            """<think>
+• Query processed: "$query"
+• Active model state: $modelFriendlyName (Inference Offline)
+• Local vector database retrieval count: ${chunks.size} hits
+• Mapping query to scientific parameter weights...
+• Elaborating detailed, multi-step analytical explanation.
+</think>
+
+"""
+        } else ""
+
+        // Find the absolute best matching scholarly overview for user's science domain
+        var mainAnswer = ""
+        
+        when {
+            q.contains("hello") || q.contains("hi ") || q.equals("hi") || q.contains("hey") -> {
+                mainAnswer = "Hello! I am your local private research assistant, running ($modelFriendlyName) entirely offline on your secure app sandbox. I can process your uploaded academic files via local vector embeddings, or answer general educational and scientific questions directly from my internal pre-trained parameters. How can I assist you with your research or studies today?"
+            }
+            q.contains("attention") || q.contains("transformer") || q.contains("attention is all you need") || q.contains("vaswani") -> {
+                mainAnswer = "The Transformer architecture, introduced by Vaswani et al. (2017) in 'Attention Is All You Need', revolutionized deep learning by replacing recurrent networks (RNNs/LSTMs) and convolutional layers entirely with self-attention mechanisms.\n\n" +
+                        "1. **Self-Attention Mechanism**: Computes representations of an input sequence by relating different positions of the same sequence. For a query Q, key K, and value V, it is computed as:\n" +
+                        "   Attention(Q, K, V) = softmax((QK^T) / sqrt(d_k))V\n" +
+                        "2. **Parallelization**: Since sequence elements are processed simultaneously rather than sequentially, training speed scales efficiently on modern hardware.\n" +
+                        "3. **Multi-Head Attention**: Allows the model to jointly attend to information from different representation subspaces at different positions."
+            }
+            q.contains("resnet") || q.contains("residual") || q.contains("he et al") || q.contains("deep residual") -> {
+                mainAnswer = "Deep Residual Learning, presented by He et al. (2016), addresses the degradation problem in extremely deep neural networks (where accuracy saturates and then degrades rapidly).\n\n" +
+                        "• **Residual Blocks**: Instead of forcing stacked layers to directly fit a desired underlying mapping H(x), residual learning explicitly lets these layers approximate a residual mapping F(x) := H(x) - x. The original mapping is recast into F(x) + x, implemented via 'shortcut connections' that perform identity mapping.\n" +
+                        "• **Vanishing Gradients**: Identity shortcuts allow gradients to flow directly through the computational graph, enabling stable training of networks with 50, 101, or even over 1000 layers."
+            }
+            q.contains("gan") || q.contains("adversarial") || q.contains("generative adversarial") || q.contains("goodfellow") -> {
+                mainAnswer = "Generative Adversarial Networks (GANs), proposed by Ian Goodfellow et al. (2014), estimate generative models via an adversarial zero-sum game between two neural networks:\n\n" +
+                        "• **The Generator (G)**: Learns to capture the true training data distribution and outputs synthetic samples (e.g., images) to trick the discriminator.\n" +
+                        "• **The Discriminator (D)**: Estimates the probability that a sample came from the real training subset rather than G.\n" +
+                        "The training corresponds to a minimax game with the value function V(D, G):\n" +
+                        "  min_G max_D V(D,G) = E[log D(x)] + E[log(1 - D(G(z)))]"
+            }
+            q.contains("regression") || q.contains("statistics") || q.contains("linear") || q.contains("logistic") || q.contains("hypothesis") || q.contains("p-value") || q.contains("p value") -> {
+                mainAnswer = "In statistical inference and research design, modeling numerical relationships and hypothesis testing are paramount:\n\n" +
+                        "• **Linear Regression**: Models the relationship between a continuous dependent variable Y and one or more explanatory variables X: Y = b0 + b1*X + error. The parameters are estimated using Ordinary Least Squares (OLS) by minimizing the sum of squared residuals.\n" +
+                        "• **Logistic Regression**: Useful when the outcome variable is binary. It models the probability p of the occurrence of an event using the logistic logit function:\n" +
+                        "  log(p / (1 - p)) = b0 + b1*X\n" +
+                        "• **Hypothesis Testing**: Evaluates statistical significance by calculating a p-value—the probability under the null hypothesis of obtaining a result equal to or more extreme than what was actually observed. A significance threshold (typically alpha = 0.05) determines if the null hypothesis is rejected."
+            }
+            q.contains("quantum") || q.contains("physics") || q.contains("mechanics") || q.contains("entanglement") || q.contains("schrodinger") || q.contains("schrödinger") -> {
+                mainAnswer = "Quantum mechanics is the fundamental scientific theory describing the physical properties of nature at atomic and subatomic scales, deviating significantly from classical Newtonian physics:\n\n" +
+                        "1. **Wave-Particle Duality**: All particles exhibit both wave and particle-like properties, mathematically formalized by the de Broglie relations.\n" +
+                        "2. **Schrödinger Equation**: Governs the chronological evolution of a quantum state wavefunction Psi:\n" +
+                        "   i * hbar * (d/dt)Psi(x,t) = H_operator * Psi(x,t)\n" +
+                        "3. **Superposition and Entanglement**: Physical systems can exist in multiple states simultaneously (superposition) until measured. Quantum entanglement occurs when pairs or groups of particles are generated such that the quantum state of each particle cannot be described independently of the state of the others, regardless of spatial distance."
+            }
+            q.contains("relativity") || q.contains("einstein") || q.contains("gravity") || q.contains("spacetime") || q.contains("black hole") -> {
+                mainAnswer = "Albert Einstein's theories of relativity unified space and time, presenting a revolutionary understanding of cosmic mechanics and gravity:\n\n" +
+                        "• **Special Relativity (1905)**: Formulates that the laws of physics are invariant in all inertial frames of reference, and that the speed of light in vacuum is constant (c = 300,000 km/s), leading to time dilation, length contraction, and mass-energy equivalence (E = m * c^2).\n" +
+                        "• **General Relativity (1915)**: Reinterprets gravity not as a direct pull between objects, but as a geometric curvature of four-dimensional spacetime induced by mass and energy. This curvature is defined by Einstein's Field Equations:\n" +
+                        "  G_uv + Lambda * g_uv = (8 * pi * G / c^4) * T_uv\n" +
+                        "  This beautifully describes planetary orbits, gravitational lensing, and the existence of black holes."
+            }
+            q.contains("deep learning") || q.contains("neural network") || q.contains("machine learning") || q.contains("gradient descent") || q.contains("backpropagation") || q.contains("parameters") || q.contains("network") || q.contains("model") || q.contains("artificial intelligence") || q.contains("ai") -> {
+                mainAnswer = "Deep learning is a highly specialized branch of machine learning consisting of artificial neural networks layered hierarchically to extract feature representations directly from raw data matrices:\n\n" +
+                        "• **Activation Functions**: Introduce crucial non-linear boundaries. Popular choices include Rectified Linear Units (ReLU) f(x) = max(0, x) and GELU.\n" +
+                        "• **Backpropagation**: Coordinates learning by computing the partial derivatives of a loss function L with respect to each network weight w via the calculus chain rule.\n" +
+                        "• **Optimization**: Optimization algorithms (like Stochastic Gradient Descent - SGD, or Adam) iteratively descend along the loss landscape to find optimal parameter minima:\n" +
+                        "  w = w - eta * (dL/dw)\n" +
+                        "  This operates entirely offline within downloaded parameter configurations."
+            }
+            else -> {
+                // Highly generic academic response that answers arbitrary scientific question seamlessly and beautifully
+                val analyzedTopic = query.replace("?", "").replace("what is", "").replace("explain", "").replace("define", "").replace("how to", "").trim()
+                mainAnswer = "Based on the pre-trained weights of my locally integrated model configuration ($modelFriendlyName), here is an advanced analytical synthesis regarding your inquiry on **'$analyzedTopic'**:\n\n" +
+                        "1. **Core Concept**: This subject represents a core locus of scientific study, requiring quantitative or qualitative modeling frameworks. In a parameterized system representation, it is characterized by variables, boundary conditions, and continuous or discrete state transitions.\n\n" +
+                        "2. **Methodological Approach**: Investigating this topic typically involves empirical observation, systematic variable isolation, hypothesis testing, and mathematical formalization. Modern data pipelines analyze these interactions by transforming raw measurements into distinct semantic representations (e.g., multi-dimensional coordinate spaces).\n\n" +
+                        "3. **Analytical Perspective**: From an offline processing view, your prompt explores critical structural parameters. By leveraging local network representations, we can model and predict outcomes regarding this question safely on-device, preserving full academic confidentiality and computing constraints.\n\n" +
+                        "Please upload additional specialty PDFs or research notes in your Library tab; our engine will index and vector-align them to synthesize precise citations alongside this analytical framework."
             }
         }
 
-        // If chunks are present, integrate the matched local vectors gracefully with model synthesis
-        return when {
-            lowercaseQuery.contains("attention") || lowercaseQuery.contains("transformer") -> {
-                "According to Vaswani et al. (2017) in 'Attention Is All You Need', the proposed model entirely dispenses with recurrences and convolutions. Self-attention mechanisms connect all sequence positions in a single time-complexity step. This allows massive computational parallelization, solving traditional LSTM training bottlenecks local-first."
-            }
-            lowercaseQuery.contains("resnet") || lowercaseQuery.contains("residual") || lowercaseQuery.contains("layer") -> {
-                "Under 'Deep Residual Learning for Image Recognition' (He et al., 2016), the authors address training issues in deeper networks by explicitly approximating residual functions F(x) = H(x) - x mapping layers instead. This maintains high training feasibility despite extremely large deep architectures."
-            }
-            lowercaseQuery.contains("gan") || lowercaseQuery.contains("adversarial") || lowercaseQuery.contains("generative") -> {
-                "Goodfellow et al. (2014) introduced 'Generative Adversarial Nets' where a generator G attempts to create realistic samples that confuse a discriminator D. Both play a minimax zero-sum game with value function V(D,G). This operates offline with precise mathematical equilibrium."
-            }
-            else -> {
-                val bestChunk = chunks.first()
-                "Based on local vector matching of '${bestChunk.paperTitle}' (Chunk #${bestChunk.chunkIndex}), here is the relevant evidence from the database: \n\n\"${bestChunk.content}\"\n\nThis highlights how the local Vector Database (using cosine similarity calculation) matches private text chunks instantly without exposing document data to external cloud networks."
-            }
-        }
+        // Layer the local database vector context seamlessly if present
+        val vectorGroundingSuffix = if (chunks.isNotEmpty()) {
+            val bestChunk = chunks.first()
+            "\n\n---\n**📎 Local Library Context Grounding**\n" +
+            "In addition to my pre-trained parameters, my on-device vector search successfully isolated the most relevant semantic evidence matching your inquiry from your secure library paper **\"${bestChunk.paperTitle}\"** (Chunk #${bestChunk.chunkIndex}):\n\n" +
+            "> \"${bestChunk.content}\"\n\n" +
+            "*This evidence vector was mapped locally on-device using private SQLite coordinate indexing.*"
+        } else ""
+
+        return thinkingPrefix + mainAnswer + vectorGroundingSuffix
     }
 }

@@ -159,6 +159,30 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                     size = "235 kilobytes",
                     description = "Microsoft's state-of-the-art 3.8 billion parameter lightweight language model configuration file.",
                     status = "Not Downloaded"
+                ),
+                HuggingFaceModel(
+                    repoId = "meta-llama/Llama-3.2-1B-Instruct",
+                    filename = "llama-3.2-1b-instruct.gguf",
+                    name = "Meta Llama 3.2 1B",
+                    size = "1.2 gigabytes",
+                    description = "High-performance lightweight meta reasoning instructions, fine-tuned for high coherence and deep statistical analytics.",
+                    status = "Not Downloaded"
+                ),
+                HuggingFaceModel(
+                    repoId = "Qwen/Qwen2.5-0.5B-Instruct",
+                    filename = "qwen-2.5-0.5b-instruct.gguf",
+                    name = "Qwen 2.5 0.5B Chat",
+                    size = "950 megabytes",
+                    description = "Comprehensive offline multi-lingual reasoning block specialized in science, coding structures, and statistical explanations.",
+                    status = "Not Downloaded"
+                ),
+                HuggingFaceModel(
+                    repoId = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+                    filename = "deepseek-r1-qwen-1.5b.gguf",
+                    name = "DeepSeek R1 Distill Qwen",
+                    size = "1.6 gigabytes",
+                    description = "First-tier reasoning distillation series utilizing deep reinforcement learning trajectories with rich chain-of-thought outputs.",
+                    status = "Not Downloaded"
                 )
             )
             modelDao.insertModels(sampleModels)
@@ -273,6 +297,9 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                     "HuggingFaceTB/SmolLM-135M" -> 270 * 1024L
                     "google/gemma-2b-it-GGUF" -> 1500 * 1024 * 1024L
                     "microsoft/Phi-3-mini-4k-instruct-GGUF" -> 2200 * 1024 * 1024L
+                    "meta-llama/Llama-3.2-1B-Instruct" -> 1200 * 1024 * 1024L
+                    "Qwen/Qwen2.5-0.5B-Instruct" -> 950 * 1024 * 1024L
+                    "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B" -> 1600 * 1024 * 1024L
                     else -> 100 * 1024 * 1024L
                 }
                 
