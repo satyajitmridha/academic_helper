@@ -40,6 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import com.example.R
 import com.example.api.GeminiClient
 import com.example.data.AcademicPaper
@@ -198,7 +201,8 @@ fun ResearchAppScreen(
                     activeModelMode = activeModelMode,
                     systemStatus = systemStatus,
                     onSendMessage = { viewModel.sendMessageToChatbot(it) },
-                    onClearHistory = { viewModel.clearChatLog() }
+                    onClearHistory = { viewModel.clearChatLog() },
+                    onUploadFile = { viewModel.importPaperFromUri(it) }
                 )
                 ActiveTab.MODELS -> ModelsTab(
                     models = hfModels,
@@ -618,10 +622,19 @@ fun ChatTab(
     activeModelMode: String,
     systemStatus: String,
     onSendMessage: (String) -> Unit,
-    onClearHistory: () -> Unit
+    onClearHistory: () -> Unit,
+    onUploadFile: (Uri) -> Unit
 ) {
     var textFieldValue by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onUploadFile(uri)
+        }
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -772,9 +785,21 @@ fun ChatTab(
                     .clip(RoundedCornerShape(28.dp))
                     .border(1.dp, ProfessionalBorder, RoundedCornerShape(28.dp))
                     .background(Color(0xFFF1F0F4))
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(
+                    onClick = { filePickerLauncher.launch("*/*") },
+                    modifier = Modifier.testTag("chat_upload_file_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddCircle,
+                        contentDescription = "Upload reference file to vector memory",
+                        modifier = Modifier.size(24.dp),
+                        tint = ProfessionalPrimary
+                    )
+                }
+
                 TextField(
                     value = textFieldValue,
                     onValueChange = { textFieldValue = it },
