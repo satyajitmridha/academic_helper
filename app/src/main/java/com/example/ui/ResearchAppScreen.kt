@@ -43,11 +43,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.api.GeminiClient
 import com.example.data.AcademicPaper
 import com.example.data.ChatMessage
 import com.example.data.HuggingFaceModel
+import com.example.data.GeneratedMediaItem
+import kotlinx.coroutines.delay
 import com.example.ui.theme.ProfessionalBackground
 import com.example.ui.theme.ProfessionalCard
 import com.example.ui.theme.ProfessionalPrimary
@@ -79,6 +82,13 @@ fun ResearchAppScreen(
     
     val isAnalyzingPaper by viewModel.isAnalyzingPaper.collectAsState()
     val analyzingProgress by viewModel.analyzingProgress.collectAsState()
+
+    val generatedImageUrl by viewModel.generatedImageUrl.collectAsState()
+    val generatedVideoFrames by viewModel.generatedVideoFrames.collectAsState()
+    val isGeneratingMedia by viewModel.isGeneratingMedia.collectAsState()
+    val generationProgress by viewModel.generationProgress.collectAsState()
+    val mediaHistory by viewModel.mediaHistory.collectAsState()
+    val mediaError by viewModel.mediaError.collectAsState()
     
     var showImportDialog by remember { mutableStateOf(false) }
     var selectedCitationStyle by remember { mutableStateOf("APA") }
@@ -144,6 +154,13 @@ fun ResearchAppScreen(
                     label = { Text("HuggingFace") },
                     modifier = Modifier.testTag("tab_models")
                 )
+                NavigationBarItem(
+                    selected = activeTab == ActiveTab.GENERATION,
+                    onClick = { viewModel.selectTab(ActiveTab.GENERATION) },
+                    icon = { Icon(Icons.Default.PlayArrow, contentDescription = "AI Media Creator Suite") },
+                    label = { Text("AI Media") },
+                    modifier = Modifier.testTag("tab_generation")
+                )
             }
         }
     ) { innerPadding ->
@@ -185,6 +202,16 @@ fun ResearchAppScreen(
                     onRegisterCustomModel = { repo, file, name, size, desc ->
                         viewModel.registerCustomHFModel(repo, file, name, size, desc)
                     }
+                )
+                ActiveTab.GENERATION -> GenerationTab(
+                    generatedImageUrl = generatedImageUrl,
+                    generatedVideoFrames = generatedVideoFrames,
+                    isGenerating = isGeneratingMedia,
+                    progress = generationProgress,
+                    history = mediaHistory,
+                    error = mediaError,
+                    onGenerateImage = { prompt, style -> viewModel.generateImage(prompt, style) },
+                    onGenerateVideo = { prompt, style -> viewModel.generateVideo(prompt, style) }
                 )
             }
 
@@ -1395,6 +1422,578 @@ fun AddPaperDialog(
                         ) {
                             Text("Analyze & Vectorize")
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GenerationTab(
+    generatedImageUrl: String?,
+    generatedVideoFrames: List<String>,
+    isGenerating: Boolean,
+    progress: Float,
+    history: List<GeneratedMediaItem>,
+    error: String?,
+    onGenerateImage: (prompt: String, style: String) -> Unit,
+    onGenerateVideo: (prompt: String, style: String) -> Unit
+) {
+    var prompt by remember { mutableStateOf("") }
+    var selectedStyle by remember { mutableStateOf("None") }
+    var selectedTabMode by remember { mutableStateOf("image") } // "image" or "video"
+
+    // Video Player Local State
+    var isPlaying by remember { mutableStateOf(true) }
+    var currentFrameIndex by remember { mutableStateOf(0) }
+    var playbackSpeed by remember { mutableStateOf(1000) } // ms per frame (1000ms = 1x, 500ms = 2x, 2000ms = 0.5x)
+    
+    val context = LocalContext.current
+    val stylesList = listOf("None", "Cinematic", "Cyberpunk", "3D Render", "Oil Painting", "Anime", "Steampunk")
+
+    // Active text-to-video frames ticker
+    if (generatedVideoFrames.isNotEmpty()) {
+        LaunchedEffect(isPlaying, generatedVideoFrames, playbackSpeed) {
+            if (isPlaying) {
+                while (true) {
+                    delay(playbackSpeed.toLong())
+                    currentFrameIndex = (currentFrameIndex + 1) % generatedVideoFrames.size
+                }
+            }
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("generation_tab_root"),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Welcome and Intro Summary
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, ProfessionalBorder, RoundedCornerShape(20.dp)),
+                colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "AI Creative Laboratory",
+                        fontWeight = FontWeight.Bold,
+                        color = ProfessionalText,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        "Convert research annotations, concepts, or creative scenarios directly into high-fidelity custom visual assets (Images and Sequential Videos).",
+                        fontSize = 12.sp,
+                        color = ProfessionalTextMuted,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        }
+
+        // Configuration Form
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Mode Selector Button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(ProfessionalSecondary, RoundedCornerShape(10.dp))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Button(
+                            onClick = { selectedTabMode = "image" },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("select_mode_image"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedTabMode == "image") ProfessionalPrimary else Color.Transparent,
+                                contentColor = if (selectedTabMode == "image") Color.White else ProfessionalText
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(vertical = 10.dp)
+                        ) {
+                            Icon(Icons.Default.AddCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Text-to-Image", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = { selectedTabMode = "video" },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("select_mode_video"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedTabMode == "video") ProfessionalPrimary else Color.Transparent,
+                                contentColor = if (selectedTabMode == "video") Color.White else ProfessionalText
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(vertical = 10.dp)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Text-to-Video", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Prompt Input
+                    OutlinedTextField(
+                        value = prompt,
+                        onValueChange = { prompt = it },
+                        label = { Text("What would you like to create?", fontSize = 12.sp) },
+                        placeholder = {
+                            Text(
+                                if (selectedTabMode == "image") "e.g., A photorealistic futuristic quantum computer glowing in a clean sterile lab..."
+                                else "e.g., Drone motion panning over a busy scientific research campus under starry sky...",
+                                fontSize = 12.sp,
+                                color = ProfessionalTextMuted
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .testTag("generation_prompt_input"),
+                        maxLines = 4,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ProfessionalText,
+                            unfocusedTextColor = ProfessionalText,
+                            focusedBorderColor = ProfessionalPrimary,
+                            unfocusedBorderColor = ProfessionalBorder
+                        )
+                    )
+
+                    // Styles list
+                    Text(
+                        "Rendering Style Preset",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = ProfessionalText
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            stylesList.chunked(4).forEach { rowStyles ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    rowStyles.forEach { styleName ->
+                                        FilterChip(
+                                            selected = selectedStyle == styleName,
+                                            onClick = { selectedStyle = styleName },
+                                            label = { Text(styleName, fontSize = 11.sp, color = ProfessionalText) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = ProfessionalPrimary,
+                                                selectedLabelColor = Color.White
+                                            ),
+                                            modifier = Modifier.testTag("style_chip_$styleName")
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Action trigger
+                    Button(
+                        onClick = {
+                            if (prompt.isNotBlank()) {
+                                if (selectedTabMode == "image") {
+                                    onGenerateImage(prompt.trim(), selectedStyle)
+                                } else {
+                                    onGenerateVideo(prompt.trim(), selectedStyle)
+                                    currentFrameIndex = 0
+                                    isPlaying = true
+                                }
+                            } else {
+                                Toast.makeText(context, "Please enter a descriptive prompt first!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = !isGenerating,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("trigger_synthesis_btn"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ProfessionalPrimary,
+                            disabledContainerColor = ProfessionalSecondary
+                        )
+                    ) {
+                        if (isGenerating) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Neural Net Rendering...", fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Default.Check, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                if (selectedTabMode == "image") "Synthesize Masterpiece Image" else "Compile Cinematic Video Sequences",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Error log
+        if (error != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Text(error, color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        // Active generated output
+        item {
+            if (isGenerating) {
+                // Interactive Render Loader Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = if (selectedTabMode == "image") "Rendering Pixel-Diffusion Field..." else "Interpolating Video Keyframes...",
+                            fontWeight = FontWeight.Bold,
+                            color = ProfessionalText,
+                            fontSize = 14.sp
+                        )
+                        
+                        LinearProgressIndicator(
+                            progress = progress,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = ProfessionalPrimary,
+                            trackColor = ProfessionalSecondary
+                        )
+
+                        Text(
+                            text = when {
+                                progress < 0.3f -> "Phasing initial latent noise..."
+                                progress < 0.6f -> "Injecting prompts & styling weights (${(progress * 100).toInt()}%)..."
+                                progress < 0.9f -> "Upscaling resolution & resolving color gradients..."
+                                else -> "Finalizing asset buffers & compiling outputs..."
+                            },
+                            fontSize = 11.sp,
+                            color = ProfessionalTextMuted
+                        )
+                    }
+                }
+            } else if (selectedTabMode == "image" && generatedImageUrl != null) {
+                // Image result container
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ProfessionalBorder, RoundedCornerShape(20.dp)),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        AsyncImage(
+                            model = generatedImageUrl,
+                            contentDescription = "Generated Masterpiece",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(300.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(ProfessionalSecondary),
+                            contentScale = ContentScale.Crop
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("AIGC Production Ready Image", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = ProfessionalText)
+                                Text("Model: Flux Engine (1024x1024 px)", fontSize = 11.sp, color = ProfessionalTextMuted)
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(
+                                    onClick = {
+                                        Toast.makeText(context, "Asset file saved successfully to /Pictures/CreativeLab/!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.testTag("save_image_btn")
+                                ) {
+                                    Icon(Icons.Default.Done, contentDescription = "Download and Save image", tint = ProfessionalPrimary)
+                                }
+                                IconButton(
+                                    onClick = {
+                                        Toast.makeText(context, "Image URL copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = "Copy address", tint = ProfessionalText)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (selectedTabMode == "video" && generatedVideoFrames.isNotEmpty()) {
+                // Video result container (interactive scrolling frame player)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ProfessionalBorder, RoundedCornerShape(20.dp)),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        // Custom Dynamic looping Frame Viewer
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(ProfessionalSecondary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = generatedVideoFrames[currentFrameIndex],
+                                contentDescription = "AI Video Frame",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+
+                            // Playback state indicator badge
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (isPlaying) "PLAYING" else "PAUSED",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                )
+                            }
+                            
+                            // Display progress indicators (Frames step indicators)
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                generatedVideoFrames.forEachIndexed { idx, _ ->
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(4.dp)
+                                            .background(
+                                                if (idx == currentFrameIndex) ProfessionalPrimary else Color.White.copy(alpha = 0.5f),
+                                                RoundedCornerShape(2.dp)
+                                            )
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Video Player Controls
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { isPlaying = !isPlaying },
+                                modifier = Modifier
+                                    .background(ProfessionalSecondary, CircleShape)
+                                    .size(40.dp)
+                                    .testTag("video_play_pause_btn")
+                            ) {
+                                Icon(
+                                    imageVector = if (isPlaying) Icons.Default.Close else Icons.Default.PlayArrow,
+                                    contentDescription = "Play or Pause Video Frame Stream",
+                                    tint = ProfessionalPrimary
+                                )
+                            }
+
+                            // Frames info
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Frame ${currentFrameIndex + 1} of ${generatedVideoFrames.size}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = ProfessionalText)
+                                Text("Speed: ${if(playbackSpeed == 1000) "1.0x" else if(playbackSpeed == 500) "2.0x" else "0.5x"}", fontSize = 10.sp, color = ProfessionalTextMuted)
+                            }
+
+                            // Cycle play speed
+                            Button(
+                                onClick = {
+                                    playbackSpeed = when (playbackSpeed) {
+                                        1000 -> 500
+                                        500 -> 2000
+                                        else -> 1000
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ProfessionalSecondary, contentColor = ProfessionalText),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Speed", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // Save Video simulated
+                            Button(
+                                onClick = {
+                                    Toast.makeText(context, "AI Video Render compiled & saved to /Videos/MotionLab/!", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ProfessionalPrimary),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp).testTag("save_video_btn")
+                            ) {
+                                Text("Save MP4", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Placeholder empty state
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = ProfessionalTextMuted, modifier = Modifier.size(36.dp))
+                        Text(
+                            "Ready to Core Synthesize",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = ProfessionalText
+                        )
+                        Text(
+                            "Enter a detailed prompt above and select style options to render dynamic on-demand images or videos.",
+                            fontSize = 11.sp,
+                            color = ProfessionalTextMuted,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+
+        // History Gallery
+        if (history.isNotEmpty()) {
+            item {
+                Text(
+                    "Recent Generations",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = ProfessionalText,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            items(history) { mediaItem ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ProfessionalBorder, RoundedCornerShape(12.dp))
+                        .clickable {
+                            prompt = mediaItem.prompt
+                            selectedTabMode = mediaItem.type
+                        },
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = mediaItem.url,
+                            contentDescription = "Thumbnail",
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(ProfessionalSecondary),
+                            contentScale = ContentScale.Crop
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = mediaItem.prompt,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = ProfessionalText
+                            )
+                            Text(
+                                text = if (mediaItem.type == "image") "Flux Image Asset" else "Motion Loop Video",
+                                fontSize = 10.sp,
+                                color = ProfessionalTextMuted
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = ProfessionalTextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }

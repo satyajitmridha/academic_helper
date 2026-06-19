@@ -100,3 +100,11 @@ data class HuggingFaceModel(
     val totalBytes: Long = 0,
     val speed: String = ""
 )
+
+data class GeneratedMediaItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val prompt: String,
+    val type: String, // "image" or "video"
+    val url: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
