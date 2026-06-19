@@ -113,35 +113,6 @@ fun ResearchAppScreen(
                         }
                     }
                 },
-                actions = {
-                    // Action button to swap engine model style
-                    AssistChip(
-                        onClick = {
-                            val target = if (activeModelMode.contains("Local")) "Hybrid Cloud (Gemini)" else "Local Offline (SmolLM)"
-                            viewModel.setModelMode(target)
-                            Toast.makeText(context, "Engine changed to: $target", Toast.LENGTH_SHORT).show()
-                        },
-                        label = {
-                            Text(
-                                if (activeModelMode.contains("Local")) "On-Device Mode" else "Cloud Hybrid",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = if (activeModelMode.contains("Local")) Icons.Default.Lock else Icons.Default.Refresh,
-                                contentDescription = "Security State Indicator",
-                                modifier = Modifier.size(14.dp)
-                            )
-                        },
-                        colors = AssistChipDefaults.assistChipColors(
-                            labelColor = ProfessionalPrimary,
-                            leadingIconContentColor = ProfessionalPrimary
-                        ),
-                        modifier = Modifier.padding(end = 8.dp).testTag("model_toggle_chip")
-                    )
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -210,7 +181,10 @@ fun ResearchAppScreen(
                     systemStatus = systemStatus,
                     onDownloadModel = { viewModel.triggerHuggingFaceModelDownload(it) },
                     activeModelMode = activeModelMode,
-                    onSelectModelMode = { viewModel.setModelMode(it) }
+                    onSelectModelMode = { viewModel.setModelMode(it) },
+                    onRegisterCustomModel = { repo, file, name, size, desc ->
+                        viewModel.registerCustomHFModel(repo, file, name, size, desc)
+                    }
                 )
             }
 
@@ -1001,7 +975,8 @@ fun ModelsTab(
     systemStatus: String,
     onDownloadModel: (String) -> Unit,
     activeModelMode: String,
-    onSelectModelMode: (String) -> Unit
+    onSelectModelMode: (String) -> Unit,
+    onRegisterCustomModel: (repoId: String, filename: String, name: String, size: String, description: String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -1032,6 +1007,125 @@ fun ModelsTab(
                         color = ProfessionalTextMuted,
                         lineHeight = 16.sp
                     )
+                }
+            }
+        }
+
+        item {
+            var isExpanded by remember { mutableStateOf(false) }
+            var repoId by remember { mutableStateOf("") }
+            var filename by remember { mutableStateOf("") }
+            var name by remember { mutableStateOf("") }
+            var size by remember { mutableStateOf("") }
+            var description by remember { mutableStateOf("") }
+
+            val context = LocalContext.current
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = ProfessionalCard)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isExpanded = !isExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.AddCircle, contentDescription = null, tint = ProfessionalPrimary)
+                            Text(
+                                "Register Custom HuggingFace Model",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = ProfessionalText
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            tint = ProfessionalTextMuted
+                        )
+                    }
+
+                    AnimatedVisibility(visible = isExpanded) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = repoId,
+                                onValueChange = { repoId = it },
+                                label = { Text("HuggingFace Repo ID (e.g. meta-llama/Llama-3.2-1B-Instruct)", fontSize = 11.sp) },
+                                modifier = Modifier.fillMaxWidth().testTag("custom_repo_id_input"),
+                                singleLine = true
+                            )
+
+                            OutlinedTextField(
+                                value = filename,
+                                onValueChange = { filename = it },
+                                label = { Text("Model Filename (e.g. llama-3.2-1b-instruct.gguf)", fontSize = 11.sp) },
+                                modifier = Modifier.fillMaxWidth().testTag("custom_filename_input"),
+                                singleLine = true
+                            )
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = name,
+                                    onValueChange = { name = it },
+                                    label = { Text("Friendly Name (e.g. Llama 3.2)", fontSize = 11.sp) },
+                                    modifier = Modifier.weight(1f).testTag("custom_name_input"),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = size,
+                                    onValueChange = { size = it },
+                                    label = { Text("File Size (e.g. 1.2 GB)", fontSize = 11.sp) },
+                                    modifier = Modifier.weight(1f).testTag("custom_size_input"),
+                                    singleLine = true
+                                )
+                            }
+
+                            OutlinedTextField(
+                                value = description,
+                                onValueChange = { description = it },
+                                label = { Text("Model Description", fontSize = 11.sp) },
+                                modifier = Modifier.fillMaxWidth().testTag("custom_desc_input"),
+                                maxLines = 3
+                            )
+
+                            Button(
+                                onClick = {
+                                    if (repoId.isNotBlank() && repoId.contains("/")) {
+                                        onRegisterCustomModel(repoId.trim(), filename.trim(), name.trim(), size.trim(), description.trim())
+                                        Toast.makeText(context, "Registered $repoId successfully. Download option is now available below!", Toast.LENGTH_SHORT).show()
+                                        repoId = ""
+                                        filename = ""
+                                        name = ""
+                                        size = ""
+                                        description = ""
+                                        isExpanded = false
+                                    } else {
+                                        Toast.makeText(context, "Valid HuggingFace Repository ID (containing '/') is required!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = ProfessionalPrimary),
+                                modifier = Modifier.align(Alignment.End).testTag("register_custom_model_btn")
+                            ) {
+                                Text("Add Custom Model Option", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             }
         }

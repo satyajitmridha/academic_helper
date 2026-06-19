@@ -44,6 +44,10 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
         chatDao.clearHistory()
     }
 
+    suspend fun insertModel(model: HuggingFaceModel) = withContext(Dispatchers.IO) {
+        modelDao.insertModel(model)
+    }
+
     suspend fun insertMessage(message: ChatMessage) = withContext(Dispatchers.IO) {
         chatDao.insertMessage(message)
     }
@@ -199,7 +203,13 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
             "HuggingFaceTB/SmolLM-135M" -> "https://huggingface.co/HuggingFaceTB/SmolLM-135M/resolve/main/config.json"
             "google/gemma-2b-it-GGUF" -> "https://huggingface.co/google/gemma-2b-it-GGUF/resolve/main/config.json"
             "microsoft/Phi-3-mini-4k-instruct-GGUF" -> "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/resolve/main/config.json"
-            else -> "https://huggingface.co/gpt2/resolve/main/config.json"
+            else -> {
+                if (model.repoId.contains("/") && model.filename.isNotEmpty()) {
+                    "https://huggingface.co/${model.repoId}/resolve/main/${model.filename}"
+                } else {
+                    "https://huggingface.co/gpt2/resolve/main/config.json"
+                }
+            }
         }
 
         try {

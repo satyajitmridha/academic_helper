@@ -226,6 +226,22 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // Dynamic registration of custom HuggingFace models
+    fun registerCustomHFModel(repoId: String, filename: String, name: String, size: String, description: String) {
+        viewModelScope.launch {
+            repository.insertModel(
+                HuggingFaceModel(
+                    repoId = repoId,
+                    filename = filename.ifBlank { "config.json" },
+                    name = name.ifBlank { repoId.substringAfter("/") },
+                    size = size.ifBlank { "Unspecified" },
+                    description = description.ifBlank { "Custom user registered model." },
+                    status = "Not Downloaded"
+                )
+            )
+        }
+    }
+
     // Main LLM chat trigger coordinating Local Vector DB check + prompt build
     fun sendMessageToChatbot(userMessage: String) {
         if (userMessage.isBlank()) return
