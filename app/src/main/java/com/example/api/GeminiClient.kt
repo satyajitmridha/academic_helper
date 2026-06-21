@@ -190,11 +190,7 @@ object GeminiClient {
             // Generation and response schema controls
             val configObj = JSONObject()
             configObj.put("temperature", 0.1)
-            
-            val responseFormatObj = JSONObject()
-            responseFormatObj.put("type", "JSON_OBJECT") // Set type for raw JSON response constraint
-            responseFormatObj.put("mimeType", "application/json")
-            configObj.put("responseFormat", responseFormatObj)
+            configObj.put("responseMimeType", "application/json")
 
             root.put("generationConfig", configObj)
 

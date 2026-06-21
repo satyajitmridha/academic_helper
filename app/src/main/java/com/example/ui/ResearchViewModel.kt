@@ -291,7 +291,7 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                         val hcap = json.optString("handicap", "")
                         val dt = json.optString("date", "")
                         
-                        val scoresArr = json.optJSONArray("scores")
+                        val scoresArr = json.optJSONArray("scores") ?: json.optJSONArray("score") ?: json.optJSONArray("strokes") ?: json.optJSONArray("holes")
                         val scoreList = mutableListOf<Int>()
                         if (scoresArr != null) {
                             for (i in 0 until scoresArr.length()) {
@@ -302,7 +302,7 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             scoreList.add(4)
                         }
 
-                        val parsArr = json.optJSONArray("pars")
+                        val parsArr = json.optJSONArray("pars") ?: json.optJSONArray("par") ?: json.optJSONArray("parGuidelines")
                         val parsList = mutableListOf<Int>()
                         if (parsArr != null) {
                             for (i in 0 until parsArr.length()) {
@@ -313,7 +313,7 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             parsList.add(defaultPars[parsList.size % 18])
                         }
 
-                        val indicesArr = json.optJSONArray("indices")
+                        val indicesArr = json.optJSONArray("indices") ?: json.optJSONArray("index") ?: json.optJSONArray("handicapIndices") ?: json.optJSONArray("handicapIndex")
                         val indicesList = mutableListOf<Int>()
                         if (indicesArr != null) {
                             for (i in 0 until indicesArr.length()) {
@@ -349,14 +349,13 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun cleanJsonResponse(input: String): String {
-        var text = input.trim()
-        if (text.startsWith("```")) {
-            text = text.removePrefix("```json").removePrefix("```")
-            if (text.endsWith("```")) {
-                text = text.removeSuffix("```")
-            }
+        val text = input.trim()
+        val firstBrace = text.indexOf('{')
+        val lastBrace = text.lastIndexOf('}')
+        if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+            return text.substring(firstBrace, lastBrace + 1)
         }
-        return text.trim()
+        return text
     }
 
     fun saveExtractedScorecard(card: GolfScorecard) {
