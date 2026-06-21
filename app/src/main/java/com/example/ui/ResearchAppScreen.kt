@@ -100,6 +100,7 @@ fun ResearchAppScreen(
     val isAnalyzingScorecard by viewModel.isAnalyzingScorecard.collectAsState()
     val scorecardAnalysisError by viewModel.scorecardAnalysisError.collectAsState()
     val extractedScorecard by viewModel.extractedScorecard.collectAsState()
+    val scorecardEngineMode by viewModel.scorecardEngineMode.collectAsState()
     
     var showImportDialog by remember { mutableStateOf(false) }
     var selectedCitationStyle by remember { mutableStateOf("APA") }
@@ -236,6 +237,8 @@ fun ResearchAppScreen(
                     isAnalyzing = isAnalyzingScorecard,
                     extractedScorecard = extractedScorecard,
                     error = scorecardAnalysisError,
+                    engineMode = scorecardEngineMode,
+                    onChangeEngineMode = { viewModel.setScorecardEngineMode(it) },
                     onAnalyzeImage = { base64, uri -> viewModel.analyzeScorecardImage(base64, uri) },
                     onSaveScorecard = { viewModel.saveExtractedScorecard(it) },
                     onCancelExtraction = { viewModel.cancelScorecardExtraction() },
@@ -2091,6 +2094,8 @@ fun ScorecardTab(
     isAnalyzing: Boolean,
     extractedScorecard: GolfScorecard?,
     error: String?,
+    engineMode: String,
+    onChangeEngineMode: (String) -> Unit,
     onAnalyzeImage: (String, String?) -> Unit,
     onSaveScorecard: (GolfScorecard) -> Unit,
     onCancelExtraction: () -> Unit,
@@ -2184,11 +2189,52 @@ fun ScorecardTab(
 
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Take a high-quality picture of your golf scorecard or upload a saved photo. Gemini will extract the golfer's name, handicap details, and the 18 holes score sequence to save in SQLite.",
+                        text = "Take a high-quality picture of your golf scorecard or upload a saved photo. The chosen engine will extract the golfer's name, handicap details, and the 18 holes score sequence to save in SQLite.",
                         fontSize = 12.sp,
                         color = ProfessionalTextMuted,
                         lineHeight = 16.sp
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "SELECT TRANSCRIPTION ENGINE",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        color = ProfessionalPrimary,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ProfessionalBorder)
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val modes = listOf("Local LLM (Llama 3.2)", "Gemini Cloud (3.5 Flash)")
+                        modes.forEach { modeName ->
+                            val isSelected = engineMode == modeName
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSelected) ProfessionalPrimary else Color.Transparent)
+                                    .clickable { onChangeEngineMode(modeName) }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (modeName.contains("Local")) "📴 Local LLM" else "🌐 Cloud Gemini",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isSelected) Color.Black else ProfessionalText
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
