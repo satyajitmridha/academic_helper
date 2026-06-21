@@ -2214,7 +2214,7 @@ fun ScorecardTab(
                             .padding(2.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        val modes = listOf("Local LLM (Llama 3.2)", "Gemini Cloud (3.5 Flash)")
+                        val modes = listOf("Local LLM (Qwen 2.5 VL)", "Gemini Cloud (3.5 Flash)")
                         modes.forEach { modeName ->
                             val isSelected = engineMode == modeName
                             Box(

@@ -111,6 +111,31 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
 
     // Seed the database with sample academic papers if it's empty
     suspend fun prepopulatePapers() = withContext(Dispatchers.IO) {
+        // Always ensure the absolute best handwriting-to-text Vision LLMs are available to download
+        val bestHandwritingModels = listOf(
+            HuggingFaceModel(
+                repoId = "Qwen/Qwen2.5-VL-3B-Instruct",
+                filename = "qwen2.5-vl-3b-instruct.gguf",
+                name = "Qwen 2.5 VL 3B (Best handwriting ML)",
+                size = "3.1 gigabytes",
+                description = "State-of-the-art vision-language model optimized for handwriting recognition, complex document layouts, and numeric score transcribing.",
+                status = "Not Downloaded"
+            ),
+            HuggingFaceModel(
+                repoId = "microsoft/Phi-3-vision-128k-instruct",
+                filename = "phi-3-vision.gguf",
+                name = "Phi-3 Vision 128k (OCR Pro)",
+                size = "2.2 gigabytes",
+                description = "Microsoft's lightweight dense vision-language model with supreme transcription accuracy for structured tables and handwriting.",
+                status = "Not Downloaded"
+            )
+        )
+        for (m in bestHandwritingModels) {
+            if (modelDao.getModelById(m.repoId) == null) {
+                modelDao.insertModel(m)
+            }
+        }
+
         val papers = paperDao.getAllPapers().first()
         if (papers.isEmpty()) {
             val samplePapers = listOf(
@@ -324,6 +349,8 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                     "meta-llama/Llama-3.2-1B-Instruct" -> 1200 * 1024 * 1024L
                     "Qwen/Qwen2.5-0.5B-Instruct" -> 950 * 1024 * 1024L
                     "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B" -> 1600 * 1024 * 1024L
+                    "Qwen/Qwen2.5-VL-3B-Instruct" -> 3100 * 1024 * 1024L
+                    "microsoft/Phi-3-vision-128k-instruct" -> 2200 * 1024 * 1024L
                     else -> 100 * 1024 * 1024L
                 }
                 

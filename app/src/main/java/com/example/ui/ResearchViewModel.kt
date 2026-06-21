@@ -84,7 +84,7 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
     private val _extractedScorecard = MutableStateFlow<GolfScorecard?>(null)
     val extractedScorecard: StateFlow<GolfScorecard?> = _extractedScorecard.asStateFlow()
 
-    private val _scorecardEngineMode = MutableStateFlow("Local LLM (Llama 3.2)") // "Local LLM (Llama 3.2)", "Gemini Cloud (3.5 Flash)"
+    private val _scorecardEngineMode = MutableStateFlow("Local LLM (Qwen 2.5 VL)") // "Local LLM (Qwen 2.5 VL)", "Gemini Cloud (3.5 Flash)"
     val scorecardEngineMode: StateFlow<String> = _scorecardEngineMode.asStateFlow()
 
     fun setScorecardEngineMode(mode: String) {
@@ -169,7 +169,7 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                     }
                     val totalSc = scoreList.sum()
                     val notesText = """
-                        Processed on-device via local Meta Llama 3.2 1B offline language parser.
+                        Processed on-device via local Qwen 2.5 VL offline handwriting parser.
                         • Total Strokes: $totalSc (Par 72)
                         • Round Efficiency: $birdiesCount Birdies, $parsCount Pars, $bogeysCount Bogeys.
                         • Estimated handicap adjusted Net score: ${totalSc - handicapVal}.
