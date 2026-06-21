@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -3229,50 +3230,37 @@ fun ScorecardTab(
                                                 Text("H${i + 1}", fontSize = 11.sp, color = ProfessionalText, modifier = Modifier.width(28.dp), fontWeight = FontWeight.Medium)
                                                 
                                                 // PAR input
-                                                val parVal = if (i < editedPars.size) "${editedPars[i]}" else "4"
-                                                OutlinedTextField(
+                                                val parVal = if (i < editedPars.size) (if (editedPars[i] == 0) "" else "${editedPars[i]}") else "4"
+                                                ScorecardCellInput(
                                                     value = parVal,
                                                     onValueChange = { newVal ->
-                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 4
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
                                                         if (i < editedPars.size) {
                                                             editedPars[i] = num
                                                         }
                                                     },
-                                                    modifier = Modifier.weight(1f).height(38.dp).testTag("edit_par_${i+1}"),
-                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = ProfessionalPrimary,
-                                                        unfocusedBorderColor = ProfessionalBorder,
-                                                        focusedTextColor = ProfessionalText,
-                                                        unfocusedTextColor = ProfessionalText
-                                                    ),
-                                                    singleLine = true
+                                                    modifier = Modifier.weight(1f).height(32.dp),
+                                                    isBold = true,
+                                                    testTag = "edit_par_${i+1}"
                                                 )
 
                                                 // Index input
-                                                val indexVal = if (i < editedIndices.size) "${editedIndices[i]}" else "9"
-                                                OutlinedTextField(
+                                                val indexVal = if (i < editedIndices.size) (if (editedIndices[i] == 0) "" else "${editedIndices[i]}") else "9"
+                                                ScorecardCellInput(
                                                     value = indexVal,
                                                     onValueChange = { newVal ->
-                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 1
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
                                                         if (i < editedIndices.size) {
                                                             editedIndices[i] = num
                                                         }
                                                     },
-                                                    modifier = Modifier.weight(1f).height(38.dp).testTag("edit_index_${i+1}"),
-                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, textAlign = TextAlign.Center),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = ProfessionalPrimary,
-                                                        unfocusedBorderColor = ProfessionalBorder,
-                                                        focusedTextColor = ProfessionalText,
-                                                        unfocusedTextColor = ProfessionalText
-                                                    ),
-                                                    singleLine = true
+                                                    modifier = Modifier.weight(1f).height(32.dp),
+                                                    testTag = "edit_index_${i+1}"
                                                 )
 
                                                 // Score input
-                                                val scoreVal = if (i < editedScores.size) "${editedScores[i]}" else "0"
-                                                OutlinedTextField(
+                                                val scoreVal = if (i < editedScores.size) (if (editedScores[i] == 0) "" else "${editedScores[i]}") else ""
+                                                ScorecardCellInput(
                                                     value = scoreVal,
                                                     onValueChange = { newVal ->
                                                         val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
@@ -3280,15 +3268,9 @@ fun ScorecardTab(
                                                             editedScores[i] = num
                                                         }
                                                     },
-                                                    modifier = Modifier.weight(1.1f).height(38.dp).testTag("edit_score_${i+1}"),
-                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = ProfessionalPrimary,
-                                                        unfocusedBorderColor = ProfessionalBorder,
-                                                        focusedTextColor = ProfessionalText,
-                                                        unfocusedTextColor = ProfessionalText
-                                                    ),
-                                                    singleLine = true
+                                                    modifier = Modifier.weight(1.1f).height(32.dp),
+                                                    isBold = true,
+                                                    testTag = "edit_score_${i+1}"
                                                 )
                                             }
                                         }
@@ -3324,50 +3306,37 @@ fun ScorecardTab(
                                                 Text("H${i + 1}", fontSize = 11.sp, color = ProfessionalText, modifier = Modifier.width(28.dp), fontWeight = FontWeight.Medium)
                                                 
                                                 // PAR input
-                                                val parVal = if (i < editedPars.size) "${editedPars[i]}" else "4"
-                                                OutlinedTextField(
+                                                val parVal = if (i < editedPars.size) (if (editedPars[i] == 0) "" else "${editedPars[i]}") else "4"
+                                                ScorecardCellInput(
                                                     value = parVal,
                                                     onValueChange = { newVal ->
-                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 4
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
                                                         if (i < editedPars.size) {
                                                             editedPars[i] = num
                                                         }
                                                     },
-                                                    modifier = Modifier.weight(1f).height(38.dp).testTag("edit_par_${i+1}"),
-                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = ProfessionalPrimary,
-                                                        unfocusedBorderColor = ProfessionalBorder,
-                                                        focusedTextColor = ProfessionalText,
-                                                        unfocusedTextColor = ProfessionalText
-                                                    ),
-                                                    singleLine = true
+                                                    modifier = Modifier.weight(1f).height(32.dp),
+                                                    isBold = true,
+                                                    testTag = "edit_par_${i+1}"
                                                 )
 
                                                 // Index input
-                                                val indexVal = if (i < editedIndices.size) "${editedIndices[i]}" else "10"
-                                                OutlinedTextField(
+                                                val indexVal = if (i < editedIndices.size) (if (editedIndices[i] == 0) "" else "${editedIndices[i]}") else "10"
+                                                ScorecardCellInput(
                                                     value = indexVal,
                                                     onValueChange = { newVal ->
-                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 1
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
                                                         if (i < editedIndices.size) {
                                                             editedIndices[i] = num
                                                         }
                                                     },
-                                                    modifier = Modifier.weight(1f).height(38.dp).testTag("edit_index_${i+1}"),
-                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, textAlign = TextAlign.Center),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = ProfessionalPrimary,
-                                                        unfocusedBorderColor = ProfessionalBorder,
-                                                        focusedTextColor = ProfessionalText,
-                                                        unfocusedTextColor = ProfessionalText
-                                                    ),
-                                                    singleLine = true
+                                                    modifier = Modifier.weight(1f).height(32.dp),
+                                                    testTag = "edit_index_${i+1}"
                                                 )
 
                                                 // Score input
-                                                val scoreVal = if (i < editedScores.size) "${editedScores[i]}" else "0"
-                                                OutlinedTextField(
+                                                val scoreVal = if (i < editedScores.size) (if (editedScores[i] == 0) "" else "${editedScores[i]}") else ""
+                                                ScorecardCellInput(
                                                     value = scoreVal,
                                                     onValueChange = { newVal ->
                                                         val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
@@ -3375,15 +3344,9 @@ fun ScorecardTab(
                                                             editedScores[i] = num
                                                         }
                                                     },
-                                                    modifier = Modifier.weight(1.1f).height(38.dp).testTag("edit_score_${i+1}"),
-                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = ProfessionalPrimary,
-                                                        unfocusedBorderColor = ProfessionalBorder,
-                                                        focusedTextColor = ProfessionalText,
-                                                        unfocusedTextColor = ProfessionalText
-                                                    ),
-                                                    singleLine = true
+                                                    modifier = Modifier.weight(1.1f).height(32.dp),
+                                                    isBold = true,
+                                                    testTag = "edit_score_${i+1}"
                                                 )
                                             }
                                         }
@@ -3450,5 +3413,46 @@ fun ScorecardTab(
             }
         }
     }
+}
+
+@Composable
+fun ScorecardCellInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    isBold: Boolean = false,
+    testTag: String = ""
+) {
+    var textState by remember(value) { mutableStateOf(value) }
+    
+    BasicTextField(
+        value = textState,
+        onValueChange = { newVal ->
+            textState = newVal
+            onValueChange(newVal)
+        },
+        modifier = modifier
+            .background(ProfessionalSecondary.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+            .border(1.dp, ProfessionalBorder, RoundedCornerShape(4.dp))
+            .testTag(testTag),
+        textStyle = androidx.compose.ui.text.TextStyle(
+            fontSize = 11.sp,
+            fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
+            color = ProfessionalText,
+            textAlign = TextAlign.Center
+        ),
+        singleLine = true,
+        decorationBox = { innerTextField ->
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                if (textState.isEmpty()) {
+                    Text("-", fontSize = 11.sp, color = ProfessionalTextMuted)
+                }
+                innerTextField()
+            }
+        }
+    )
 }
 

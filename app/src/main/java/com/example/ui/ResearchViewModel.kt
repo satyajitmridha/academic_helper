@@ -92,17 +92,10 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun sanitizePlayerName(raw: String): String {
-        val golferPool = listOf(
-            "Tiger Woods", "Lydia Ko", "Ariya Jutanugarn", "Rory McIlroy", 
-            "Nelly Korda", "Scottie Scheffler", "Collin Morikawa", "Rose Zhang",
-            "Minjee Lee", "Viktor Hovland", "Jordan Spieth", "Lexi Thompson",
-            "Jin Young Ko", "Jon Rahm", "Brooks Koepka", "Leona Maguire",
-            "Xander Schauffele", "Ludvig Aberg", "Tommy Fleetwood", "Aditi Ashok"
-        )
         // Extract only letter and space characters to avoid numbers entirely
         val lettersAndSpaces = raw.filter { it.isLetter() || it.isWhitespace() }.replace(Regex("\\s+"), " ").trim()
         if (lettersAndSpaces.length < 3 || lettersAndSpaces.lowercase() == "unknown" || lettersAndSpaces.all { !it.isLetter() }) {
-            return golferPool.random()
+            return "Guest Player"
         }
         return lettersAndSpaces
     }
