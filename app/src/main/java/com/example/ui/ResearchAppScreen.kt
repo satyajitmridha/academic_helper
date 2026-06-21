@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,6 +44,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.content.ContentValues
+import android.provider.MediaStore
+import com.example.data.GolfScorecard
 import coil.compose.AsyncImage
 import com.example.R
 import com.example.api.GeminiClient
@@ -89,6 +95,11 @@ fun ResearchAppScreen(
     val generationProgress by viewModel.generationProgress.collectAsState()
     val mediaHistory by viewModel.mediaHistory.collectAsState()
     val mediaError by viewModel.mediaError.collectAsState()
+
+    val scorecards by viewModel.scorecards.collectAsState()
+    val isAnalyzingScorecard by viewModel.isAnalyzingScorecard.collectAsState()
+    val scorecardAnalysisError by viewModel.scorecardAnalysisError.collectAsState()
+    val extractedScorecard by viewModel.extractedScorecard.collectAsState()
     
     var showImportDialog by remember { mutableStateOf(false) }
     var selectedCitationStyle by remember { mutableStateOf("APA") }
@@ -161,6 +172,13 @@ fun ResearchAppScreen(
                     label = { Text("AI Media") },
                     modifier = Modifier.testTag("tab_generation")
                 )
+                NavigationBarItem(
+                    selected = activeTab == ActiveTab.SCORECARD,
+                    onClick = { viewModel.selectTab(ActiveTab.SCORECARD) },
+                    icon = { Icon(Icons.Default.Check, contentDescription = "Scorecard Performance Transcriber Dashboard") },
+                    label = { Text("Scorecard") },
+                    modifier = Modifier.testTag("tab_scorecard")
+                )
             }
         }
     ) { innerPadding ->
@@ -212,6 +230,17 @@ fun ResearchAppScreen(
                     error = mediaError,
                     onGenerateImage = { prompt, style -> viewModel.generateImage(prompt, style) },
                     onGenerateVideo = { prompt, style -> viewModel.generateVideo(prompt, style) }
+                )
+                ActiveTab.SCORECARD -> ScorecardTab(
+                    scorecards = scorecards,
+                    isAnalyzing = isAnalyzingScorecard,
+                    extractedScorecard = extractedScorecard,
+                    error = scorecardAnalysisError,
+                    onAnalyzeImage = { base64, uri -> viewModel.analyzeScorecardImage(base64, uri) },
+                    onSaveScorecard = { viewModel.saveExtractedScorecard(it) },
+                    onCancelExtraction = { viewModel.cancelScorecardExtraction() },
+                    onDeleteScorecard = { viewModel.deleteScorecard(it) },
+                    onClearAll = { viewModel.clearAllScorecards() }
                 )
             }
 
@@ -2000,3 +2029,1007 @@ fun GenerationTab(
         }
     }
 }
+
+// --- Scorecard Helper Utilities ---
+
+fun getBase64FromUri(context: android.content.Context, uri: Uri): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val originalBitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream?.close()
+        
+        if (originalBitmap == null) return null
+        
+        // Resize bitmap to a reasonable size if it's huge, e.g. max 1024px on larger side
+        val maxSide = 1024
+        val width = originalBitmap.width
+        val height = originalBitmap.height
+        val scaledBitmap = if (width > maxSide || height > maxSide) {
+            val ratio = width.toFloat() / height.toFloat()
+            val (newWidth, newHeight) = if (ratio > 1) {
+                Pair(maxSide, (maxSide / ratio).toInt())
+            } else {
+                Pair((maxSide * ratio).toInt(), maxSide)
+            }
+            Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, true)
+        } else {
+            originalBitmap
+        }
+        
+        val outputStream = java.io.ByteArrayOutputStream()
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+        val bytes = outputStream.toByteArray()
+        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+fun createCameraImageUri(context: android.content.Context): Uri? {
+    return try {
+        val contentResolver = context.contentResolver
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "Scorecard_${System.currentTimeMillis()}.jpg")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/ScorecardDashboard")
+            }
+        }
+        contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+// --- Scorecard Transcriber Dashboard Screen ---
+
+@Composable
+fun ScorecardTab(
+    scorecards: List<GolfScorecard>,
+    isAnalyzing: Boolean,
+    extractedScorecard: GolfScorecard?,
+    error: String?,
+    onAnalyzeImage: (String, String?) -> Unit,
+    onSaveScorecard: (GolfScorecard) -> Unit,
+    onCancelExtraction: () -> Unit,
+    onDeleteScorecard: (GolfScorecard) -> Unit,
+    onClearAll: () -> Unit
+) {
+    val context = LocalContext.current
+    var activeCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedAnalyticsCardId by remember(scorecards) { 
+        mutableStateOf(if (scorecards.isNotEmpty()) scorecards.first().id else -1) 
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+        onResult = { success ->
+            if (success) {
+                activeCameraUri?.let { uri ->
+                    val base64 = getBase64FromUri(context, uri)
+                    if (base64 != null) {
+                        onAnalyzeImage(base64, uri.toString())
+                    } else {
+                        Toast.makeText(context, "Failed to load camera image", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    )
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri ->
+            uri?.let {
+                val base64 = getBase64FromUri(context, it)
+                if (base64 != null) {
+                    onAnalyzeImage(base64, it.toString())
+                } else {
+                    Toast.makeText(context, "Failed to load gallery image", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    )
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Main Branding Header
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(ProfessionalPrimary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Golf Scorecard Digitizer",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = ProfessionalText
+                            )
+                            Text(
+                                text = "Powered by Gemini AI Multimodal Processing",
+                                fontSize = 11.sp,
+                                color = ProfessionalTextMuted
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Take a high-quality picture of your golf scorecard or upload a saved photo. Gemini will extract the golfer's name, handicap details, and the 18 holes score sequence to save in SQLite.",
+                        fontSize = 12.sp,
+                        color = ProfessionalTextMuted,
+                        lineHeight = 16.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val uri = createCameraImageUri(context)
+                                if (uri != null) {
+                                    activeCameraUri = uri
+                                    cameraLauncher.launch(uri)
+                                } else {
+                                    Toast.makeText(context, "Camera initialization failed", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f).testTag("take_picture_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = ProfessionalPrimary, contentColor = Color.Black),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Take Photo", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+
+                        Button(
+                            onClick = { galleryLauncher.launch("image/*") },
+                            modifier = Modifier.weight(1f).testTag("upload_image_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = ProfessionalSecondary, contentColor = ProfessionalText),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Upload Image", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Active Analysis Loading state
+        if (isAnalyzing) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                    border = BorderStroke(1.dp, ProfessionalBorder)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(color = ProfessionalPrimary)
+                        Text(
+                            text = "Transcribing Scorecard with Gemini Flash...",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = ProfessionalText
+                        )
+                        Text(
+                            text = "Gemini is examining handwriting, aligning play cells, and processing strokes.",
+                            fontSize = 11.sp,
+                            color = ProfessionalTextMuted,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+
+        // Error message display
+        if (error != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Error icon",
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = error,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = onCancelExtraction) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Stats Dashboard Metric section
+        if (scorecards.isNotEmpty()) {
+            item {
+                Text(
+                    text = "📊 Performance Dashboard",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = ProfessionalText,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            item {
+                val totalGames = scorecards.size
+                val avgScore = scorecards.map { it.totalScore }.average().toInt()
+                val bestScore = scorecards.map { it.totalScore }.minOrNull() ?: 0
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Total Games
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Total Rounds", fontSize = 10.sp, color = ProfessionalTextMuted)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "$totalGames",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = ProfessionalPrimary
+                            )
+                        }
+                    }
+
+                    // Average Score
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Average Score", fontSize = 10.sp, color = ProfessionalTextMuted)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "$avgScore",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = ProfessionalText
+                            )
+                        }
+                    }
+
+                    // Best Score (Lowest Total Strokes)
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Best Score", fontSize = 10.sp, color = ProfessionalTextMuted)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "$bestScore",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = Color.Green
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Interactive Score Chart visualizer
+            item {
+                val activeCard = scorecards.find { it.id == selectedAnalyticsCardId } ?: scorecards.first()
+                val activeScores = remember(activeCard) {
+                    try {
+                        org.json.JSONArray(activeCard.scoresJson).run {
+                            List(length()) { getInt(it) }
+                        }
+                    } catch (e: Exception) {
+                        List(18) { 0 }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ProfessionalBorder)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Round Performance - ${activeCard.playerName}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = ProfessionalText
+                                )
+                                Text(
+                                    text = "Visual bar charts of strokes made per hole (H1 to H18)",
+                                    fontSize = 11.sp,
+                                    color = ProfessionalTextMuted
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(ProfessionalPrimary.copy(alpha = 0.2f))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "${activeCard.totalScore} Strokes",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = ProfessionalPrimary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Visual Charts row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            activeScores.forEachIndexed { idx, score ->
+                                val displayScore = if (score > 10) 10 else score
+                                // Calculate fractional height relative to max strokes of 10
+                                val barHeightFactor = if (displayScore > 0) displayScore / 10f else 0.05f
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Bottom
+                                ) {
+                                    Text(
+                                        text = if (score > 0) "$score" else "-",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (score > 5) Color.Red else if (score in 1..3) Color.Green else ProfessionalText
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .fillMaxHeight(barHeightFactor)
+                                            .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
+                                            .background(
+                                                if (score > 5) Color.Red.copy(0.7f)
+                                                else if (score in 1..3) Color.Green.copy(0.7f)
+                                                else ProfessionalPrimary
+                                            )
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${idx + 1}",
+                                        fontSize = 8.sp,
+                                        color = ProfessionalTextMuted
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Saved List Selector & Clear History Buttons
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "📋 Recorded Scorecards",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = ProfessionalText
+                    )
+                    TextButton(onClick = onClearAll) {
+                        Text("Clear All", color = Color.Red, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // List of cards item by item
+            items(scorecards) { card ->
+                val cardScores = remember(card) {
+                    try {
+                        org.json.JSONArray(card.scoresJson).run {
+                            List(length()) { getInt(it) }
+                        }
+                    } catch (e: Exception) {
+                        List(18) { 0 }
+                    }
+                }
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedAnalyticsCardId = card.id },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (card.id == selectedAnalyticsCardId) ProfessionalSecondary else ProfessionalCard
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (card.id == selectedAnalyticsCardId) ProfessionalPrimary else ProfessionalBorder
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (card.imageUri != null) {
+                                    AsyncImage(
+                                        model = card.imageUri,
+                                        contentDescription = "Scorecard Image",
+                                        modifier = Modifier
+                                            .size(50.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(ProfessionalBorder),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(50.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(ProfessionalBorder),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("⛳", fontSize = 20.sp)
+                                    }
+                                }
+
+                                Column {
+                                    Text(
+                                        text = card.playerName,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = ProfessionalText
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        if (card.date.isNotEmpty()) {
+                                            Text("📅 ${card.date}", fontSize = 11.sp, color = ProfessionalTextMuted)
+                                        }
+                                        if (card.handicap.isNotEmpty()) {
+                                            Text("🎯 HCP: ${card.handicap}", fontSize = 11.sp, color = ProfessionalTextMuted)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Core Total Score circle
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(ProfessionalPrimary),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${card.totalScore}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = Color.Black
+                                    )
+                                }
+
+                                IconButton(onClick = { onDeleteScorecard(card) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete scorecard entry",
+                                        tint = Color.Red.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Play card grid visualization
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        // OUT (Holes 1 to 9)
+                        val outScores = cardScores.take(9)
+                        val outSum = outScores.sum()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, ProfessionalBorder, RoundedCornerShape(4.dp))
+                                .background(ProfessionalCard)
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Text("OUT:", fontWeight = FontWeight.Bold, fontSize = 9.sp, color = ProfessionalText, modifier = Modifier.width(30.dp))
+                            outScores.forEachIndexed { i, score ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                                    Text("H${i+1}", fontSize = 8.sp, color = ProfessionalTextMuted)
+                                    Text("$score", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalText)
+                                }
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(24.dp)) {
+                                Text("TOT", fontSize = 8.sp, color = ProfessionalPrimary)
+                                Text("$outSum", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalPrimary)
+                            }
+                        }
+
+                        // IN (Holes 10 to 18)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val inScores = cardScores.drop(9).take(9)
+                        val inSum = inScores.sum()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, ProfessionalBorder, RoundedCornerShape(4.dp))
+                                .background(ProfessionalCard)
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Text("IN:", fontWeight = FontWeight.Bold, fontSize = 9.sp, color = ProfessionalText, modifier = Modifier.width(30.dp))
+                            inScores.forEachIndexed { i, score ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                                    Text("H${i+10}", fontSize = 8.sp, color = ProfessionalTextMuted)
+                                    Text("$score", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalText)
+                                }
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(24.dp)) {
+                                Text("TOT", fontSize = 8.sp, color = ProfessionalPrimary)
+                                Text("$inSum", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalPrimary)
+                            }
+                        }
+
+                        // Note text summary
+                        if (card.notes.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(ProfessionalBorder.copy(alpha = 0.3f))
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    text = card.notes,
+                                    fontSize = 11.sp,
+                                    color = ProfessionalTextMuted,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Placeholder empty scorecard landing page
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                    border = BorderStroke(1.dp, ProfessionalBorder),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("⛳", fontSize = 48.sp)
+                        Text(
+                            text = "No Scorecard Records Yet",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = ProfessionalText
+                        )
+                        Text(
+                            text = "Digitized scorecard cards are securely stored within your local Room database to review round statistics seamlessly offline.",
+                            fontSize = 12.sp,
+                            color = ProfessionalTextMuted,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(ProfessionalPrimary)
+                                .clickable {
+                                    val uri = createCameraImageUri(context)
+                                    if (uri != null) {
+                                        activeCameraUri = uri
+                                        cameraLauncher.launch(uri)
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "Capture Scorecard with Camera",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Core Review Extracted Scorecard Form Dialog ---
+
+    if (extractedScorecard != null) {
+        var editedName by remember(extractedScorecard) { mutableStateOf(extractedScorecard.playerName) }
+        var editedHandicap by remember(extractedScorecard) { mutableStateOf(extractedScorecard.handicap) }
+        var editedDate by remember(extractedScorecard) { mutableStateOf(extractedScorecard.date) }
+        var editedNotes by remember(extractedScorecard) { mutableStateOf(extractedScorecard.notes) }
+
+        val parsedScores = remember(extractedScorecard) {
+            try {
+                org.json.JSONArray(extractedScorecard.scoresJson).run {
+                    List(length()) { getInt(it) }
+                }
+            } catch (e: Exception) {
+                List(18) { 0 }
+            }
+        }
+
+        val editedScores = remember(extractedScorecard) {
+            mutableStateListOf(*parsedScores.toTypedArray())
+        }
+
+        // Pad to exactly 18 elements
+        LaunchedEffect(editedScores) {
+            while (editedScores.size < 18) {
+                editedScores.add(0)
+            }
+        }
+
+        Dialog(onDismissRequest = onCancelExtraction) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.9f)
+                    .testTag("review_scorecard_dialog"),
+                colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, ProfessionalBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    // Dialog title
+                    Text(
+                        text = "🔍 Verify Extracted Results",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = ProfessionalText
+                    )
+                    Text(
+                        text = "Tweak any recognition gaps or strokes before committing to SQLite.",
+                        fontSize = 11.sp,
+                        color = ProfessionalTextMuted
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Scrollable form fields
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        item {
+                            OutlinedTextField(
+                                value = editedName,
+                                onValueChange = { editedName = it },
+                                label = { Text("Player Name") },
+                                modifier = Modifier.fillMaxWidth().testTag("edit_player_name"),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ProfessionalPrimary,
+                                    unfocusedBorderColor = ProfessionalBorder,
+                                    focusedLabelColor = ProfessionalPrimary,
+                                    focusedTextColor = ProfessionalText,
+                                    unfocusedTextColor = ProfessionalText
+                                )
+                            )
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = editedDate,
+                                    onValueChange = { editedDate = it },
+                                    label = { Text("Date") },
+                                    modifier = Modifier.weight(1f).testTag("edit_date"),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = ProfessionalPrimary,
+                                        unfocusedBorderColor = ProfessionalBorder,
+                                        focusedLabelColor = ProfessionalPrimary,
+                                        focusedTextColor = ProfessionalText,
+                                        unfocusedTextColor = ProfessionalText
+                                    )
+                                )
+
+                                OutlinedTextField(
+                                    value = editedHandicap,
+                                    onValueChange = { editedHandicap = it },
+                                    label = { Text("Handicap") },
+                                    modifier = Modifier.weight(1f).testTag("edit_handicap"),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = ProfessionalPrimary,
+                                        unfocusedBorderColor = ProfessionalBorder,
+                                        focusedLabelColor = ProfessionalPrimary,
+                                        focusedTextColor = ProfessionalText,
+                                        unfocusedTextColor = ProfessionalText
+                                    )
+                                )
+                            }
+                        }
+
+                        // Quick visual reference of total score
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(ProfessionalPrimary.copy(alpha = 0.15f))
+                                    .padding(12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("Recalculated Play Total:", fontSize = 12.sp, color = ProfessionalText)
+                                    Text(
+                                        text = "${editedScores.sum()} Strokes",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = ProfessionalPrimary
+                                    )
+                                }
+                            }
+                        }
+
+                        // 18 hole grid representation
+                        item {
+                            Text(
+                                text = "⛳ Holes 1-18 Stroke Editors",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = ProfessionalText,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, ProfessionalBorder, RoundedCornerShape(8.dp))
+                                    .background(ProfessionalCard)
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Column layout of 9 entries each
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    // Left Column (Holes 1 to 9)
+                                    Column(modifier = Modifier.weight(1f).padding(end = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("OUT (Holes 1-9)", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = ProfessionalPrimary)
+                                        for (i in 0..8) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Hole ${i + 1}:", fontSize = 11.sp, color = ProfessionalText)
+                                                val textValue = if (i < editedScores.size) "${editedScores[i]}" else "0"
+                                                OutlinedTextField(
+                                                    value = textValue,
+                                                    onValueChange = { newVal ->
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
+                                                        if (i < editedScores.size) {
+                                                            editedScores[i] = num
+                                                        }
+                                                    },
+                                                    modifier = Modifier.width(60.dp).height(40.dp).testTag("edit_hole_${i+1}"),
+                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = ProfessionalPrimary,
+                                                        unfocusedBorderColor = ProfessionalBorder,
+                                                        focusedTextColor = ProfessionalText,
+                                                        unfocusedTextColor = ProfessionalText
+                                                    ),
+                                                    singleLine = true
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp).fillMaxHeight().background(ProfessionalBorder))
+
+                                    // Right Column (Holes 10 to 18)
+                                    Column(modifier = Modifier.weight(1f).padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("IN (Holes 10-18)", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = ProfessionalPrimary)
+                                        for (i in 9..17) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Hole ${i + 1}:", fontSize = 11.sp, color = ProfessionalText)
+                                                val textValue = if (i < editedScores.size) "${editedScores[i]}" else "0"
+                                                OutlinedTextField(
+                                                    value = textValue,
+                                                    onValueChange = { newVal ->
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
+                                                        if (i < editedScores.size) {
+                                                            editedScores[i] = num
+                                                        }
+                                                    },
+                                                    modifier = Modifier.width(60.dp).height(40.dp).testTag("edit_hole_${i+1}"),
+                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = ProfessionalPrimary,
+                                                        unfocusedBorderColor = ProfessionalBorder,
+                                                        focusedTextColor = ProfessionalText,
+                                                        unfocusedTextColor = ProfessionalText
+                                                    ),
+                                                    singleLine = true
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            OutlinedTextField(
+                                value = editedNotes,
+                                onValueChange = { editedNotes = it },
+                                label = { Text("Recap Notes") },
+                                modifier = Modifier.fillMaxWidth().testTag("edit_notes"),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ProfessionalPrimary,
+                                    unfocusedBorderColor = ProfessionalBorder,
+                                    focusedLabelColor = ProfessionalPrimary,
+                                    focusedTextColor = ProfessionalText,
+                                    unfocusedTextColor = ProfessionalText
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Dialog Actions Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = onCancelExtraction,
+                            modifier = Modifier.weight(1f).testTag("cancel_review_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = ProfessionalSecondary, contentColor = ProfessionalText),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Discard", fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                val finalCard = extractedScorecard.copy(
+                                    playerName = editedName,
+                                    handicap = editedHandicap,
+                                    date = editedDate,
+                                    notes = editedNotes,
+                                    scoresJson = org.json.JSONArray(editedScores.toList()).toString(),
+                                    totalScore = editedScores.sum()
+                                )
+                                onSaveScorecard(finalCard)
+                            },
+                            modifier = Modifier.weight(1.5f).testTag("save_scorecard_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = ProfessionalPrimary, contentColor = Color.Black),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Save to SQLite", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

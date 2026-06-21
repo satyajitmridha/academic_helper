@@ -22,10 +22,24 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
     private val chunkDao = db.chunkDao()
     private val chatDao = db.chatDao()
     private val modelDao = db.modelDao()
+    private val scorecardDao = db.scorecardDao()
 
     val allPapers: Flow<List<AcademicPaper>> = paperDao.getAllPapers()
     val allMessages: Flow<List<ChatMessage>> = chatDao.getAllMessages()
     val allModels: Flow<List<HuggingFaceModel>> = modelDao.getAllModels()
+    val allScorecards: Flow<List<GolfScorecard>> = scorecardDao.getAllScorecards()
+
+    suspend fun insertScorecard(card: GolfScorecard): Long = withContext(Dispatchers.IO) {
+        scorecardDao.insertScorecard(card)
+    }
+
+    suspend fun deleteScorecard(card: GolfScorecard) = withContext(Dispatchers.IO) {
+        scorecardDao.deleteScorecard(card)
+    }
+
+    suspend fun clearAllScorecards() = withContext(Dispatchers.IO) {
+        scorecardDao.clearAllScorecards()
+    }
 
     suspend fun insertPaper(paper: AcademicPaper): Long = withContext(Dispatchers.IO) {
         paperDao.insertPaper(paper)

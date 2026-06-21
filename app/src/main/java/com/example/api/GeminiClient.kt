@@ -120,4 +120,114 @@ object GeminiClient {
             return@withContext "Offline Mode Fallback / Connection Error: ${e.localizedMessage}"
         }
     }
+
+    /**
+     * Executes a multimodal Gemini-3.5-flash request with structured JSON response config
+     * to extract golfer's name, handicap, date, individual scores, and a notes summary.
+     */
+    suspend fun analyzeScorecard(
+        base64Image: String,
+        mimeType: String = "image/jpeg"
+    ): String = withContext(Dispatchers.IO) {
+        if (!isApiKeyConfigured()) {
+            return@withContext "API_MOCK"
+        }
+
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+
+        try {
+            val root = JSONObject()
+
+            // System instructions to enforce rigid JSON compliance
+            val sysInstObj = JSONObject()
+            val sysPartsArray = JSONArray()
+            sysPartsArray.put(JSONObject().put("text", "You are an expert handwritten golf scorecard digitizer. You must analyze the image and output ONLY a single valid JSON object representing the scorecard fields, without any markdown formatting or ticks. Always return exactly 18 hole scores in the scores list."))
+            sysInstObj.put("parts", sysPartsArray)
+            root.put("systemInstruction", sysInstObj)
+
+            // Contents array (user prompt + image inlineData)
+            val contentsArray = JSONArray()
+            val promptObj = JSONObject()
+            val promptParts = JSONArray()
+
+            val promptText = """
+                Extract the player's name, handicap (if noted), date (e.g. 24/8), and the sequence of 18 hole scores for the player.
+                Holes 1 to 18 scores should be mapped to an array in correct sequential order. Use 0 for any missing or uncompleted holes.
+                Calculate or read the total score.
+                Then generate a concise notes bullet detailing their general play milestones.
+                
+                Format the result as this JSON structure:
+                {
+                  "playerName": "Extracted Player Name",
+                  "handicap": "Handicap if found, else empty",
+                  "date": "Date if found, else empty",
+                  "scores": [18 numbers for holes 1 to 18 sequential scores],
+                  "totalScore": 102,
+                  "notes": "Brief bulleted or styled recap"
+                }
+            """.trimIndent()
+
+            promptParts.put(JSONObject().put("text", promptText))
+
+            // Inline image bytes
+            val imagePart = JSONObject()
+            val inlineDataObj = JSONObject()
+            inlineDataObj.put("mimeType", mimeType)
+            inlineDataObj.put("data", base64Image)
+            imagePart.put("inlineData", inlineDataObj)
+            promptParts.put(imagePart)
+
+            promptObj.put("role", "user")
+            promptObj.put("parts", promptParts)
+            contentsArray.put(promptObj)
+            root.put("contents", contentsArray)
+
+            // Generation and response schema controls
+            val configObj = JSONObject()
+            configObj.put("temperature", 0.1)
+            
+            val responseFormatObj = JSONObject()
+            responseFormatObj.put("type", "JSON_OBJECT") // Set type for raw JSON response constraint
+            responseFormatObj.put("mimeType", "application/json")
+            configObj.put("responseFormat", responseFormatObj)
+
+            root.put("generationConfig", configObj)
+
+            val requestBodyStr = root.toString()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val requestBody = requestBodyStr.toRequestBody(mediaType)
+
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val responseBodyStr = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "Scorecard generation failed with code ${response.code}: $responseBodyStr")
+                    return@withContext "Error: Server returned code ${response.code}"
+                }
+
+                val responseJson = JSONObject(responseBodyStr)
+                val candidates = responseJson.optJSONArray("candidates")
+                if (candidates != null && candidates.length() > 0) {
+                    val firstCandidate = candidates.getJSONObject(0)
+                    val contentObj = firstCandidate.optJSONObject("content")
+                    if (contentObj != null) {
+                        val partsArr = contentObj.optJSONArray("parts")
+                        if (partsArr != null && partsArr.length() > 0) {
+                            return@withContext partsArr.getJSONObject(0).optString("text", "")
+                        }
+                    }
+                }
+                return@withContext "ErrorLog: Response format was unrecognized: $responseBodyStr"
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Scorecard generation failed", e)
+            return@withContext "Error: ${e.localizedMessage}"
+        }
+    }
 }
+

@@ -108,3 +108,17 @@ data class GeneratedMediaItem(
     val url: String,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "golf_scorecards")
+data class GolfScorecard(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val playerName: String,
+    val handicap: String = "",
+    val date: String = "",
+    val scoresJson: String, // JSON Array representation: "[6,6,3,7,4,6,6,7,5,6,6,5,6,5,6,5,6,10]"
+    val totalScore: Int,
+    val notes: String = "",
+    val imageUri: String? = null,
+    val timestamp: Long = System.currentTimeMillis()
+)
+

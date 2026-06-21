@@ -68,3 +68,22 @@ interface ModelDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertModels(models: List<HuggingFaceModel>)
 }
+
+@Dao
+interface ScorecardDao {
+    @Query("SELECT * FROM golf_scorecards ORDER BY timestamp DESC")
+    fun getAllScorecards(): Flow<List<GolfScorecard>>
+
+    @Query("SELECT * FROM golf_scorecards WHERE id = :id")
+    suspend fun getScorecardById(id: Int): GolfScorecard?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertScorecard(card: GolfScorecard): Long
+
+    @Delete
+    suspend fun deleteScorecard(card: GolfScorecard)
+
+    @Query("DELETE FROM golf_scorecards")
+    suspend fun clearAllScorecards()
+}
+

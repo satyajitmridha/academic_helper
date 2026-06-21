@@ -10,9 +10,10 @@ import androidx.room.RoomDatabase
         AcademicPaper::class,
         DocumentChunk::class,
         ChatMessage::class,
-        HuggingFaceModel::class
+        HuggingFaceModel::class,
+        GolfScorecard::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -20,6 +21,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun chunkDao(): ChunkDao
     abstract fun chatDao(): ChatDao
     abstract fun modelDao(): ModelDao
+    abstract fun scorecardDao(): ScorecardDao
 
     companion object {
         @Volatile
