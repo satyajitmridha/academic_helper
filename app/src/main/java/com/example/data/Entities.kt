@@ -116,6 +116,8 @@ data class GolfScorecard(
     val handicap: String = "",
     val date: String = "",
     val scoresJson: String, // JSON Array representation: "[6,6,3,7,4,6,6,7,5,6,6,5,6,5,6,5,6,10]"
+    val parsJson: String = "", // JSON Array representation: "[4,4,3,4,5,4...] "
+    val indicesJson: String = "", // JSON Array representation: "[9,15,11,1...] "
     val totalScore: Int,
     val notes: String = "",
     val imageUri: String? = null,

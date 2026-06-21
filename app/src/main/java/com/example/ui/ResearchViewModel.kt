@@ -91,11 +91,30 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
         _scorecardEngineMode.value = mode
     }
 
+    private fun sanitizePlayerName(raw: String): String {
+        val golferPool = listOf(
+            "Tiger Woods", "Lydia Ko", "Ariya Jutanugarn", "Rory McIlroy", 
+            "Nelly Korda", "Scottie Scheffler", "Collin Morikawa", "Rose Zhang",
+            "Minjee Lee", "Viktor Hovland", "Jordan Spieth", "Lexi Thompson",
+            "Jin Young Ko", "Jon Rahm", "Brooks Koepka", "Leona Maguire",
+            "Xander Schauffele", "Ludvig Aberg", "Tommy Fleetwood", "Aditi Ashok"
+        )
+        // Extract only letter and space characters to avoid numbers entirely
+        val lettersAndSpaces = raw.filter { it.isLetter() || it.isWhitespace() }.replace(Regex("\\s+"), " ").trim()
+        if (lettersAndSpaces.length < 3 || lettersAndSpaces.lowercase() == "unknown" || lettersAndSpaces.all { !it.isLetter() }) {
+            return golferPool.random()
+        }
+        return lettersAndSpaces
+    }
+
     fun analyzeScorecardImage(base64Image: String, imageUri: String?) {
         viewModelScope.launch {
             _isAnalyzingScorecard.value = true
             _scorecardAnalysisError.value = null
             _extractedScorecard.value = null
+            
+            val defaultPars = listOf(4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 4, 4, 5, 3, 4, 4, 5)
+            val defaultIndices = listOf(9, 15, 11, 1, 13, 5, 17, 3, 7, 10, 18, 12, 2, 14, 6, 16, 4, 8)
             
             try {
                 val isLocalMode = _scorecardEngineMode.value.contains("Local")
@@ -129,18 +148,11 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                         }
                     }
                     
-                    val golferPool = listOf(
-                        "Tiger Woods", "Lydia Ko", "Ariya Jutanugarn", "Rory McIlroy", 
-                        "Nelly Korda", "Scottie Scheffler", "Collin Morikawa", "Rose Zhang",
-                        "Minjee Lee", "Viktor Hovland", "Jordan Spieth", "Lexi Thompson",
-                        "Jin Young Ko", "Jon Rahm", "Brooks Koepka", "Leona Maguire",
-                        "Xander Schauffele", "Ludvig Aberg", "Tommy Fleetwood", "Aditi Ashok"
-                    )
-                    val pName = extractedNameFromFilename ?: golferPool.random()
+                    val pName = sanitizePlayerName(extractedNameFromFilename ?: "")
                     val handicapVal = (2..28).random()
                     val currentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
                     
-                    val pars = listOf(4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 4, 4, 5, 3, 4, 4, 5)
+                    val pars = defaultPars
                     val scoreList = mutableListOf<Int>()
                     var birdiesCount = 0
                     var parsCount = 0
@@ -181,6 +193,8 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                         handicap = handicapVal.toString(),
                         date = currentDate,
                         scoresJson = scoreList.toString(),
+                        parsJson = defaultPars.toString(),
+                        indicesJson = defaultIndices.toString(),
                         totalScore = totalSc,
                         notes = notesText,
                         imageUri = imageUri
@@ -217,18 +231,11 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             }
                         }
                         
-                        val golferPool = listOf(
-                            "Tiger Woods", "Lydia Ko", "Ariya Jutanugarn", "Rory McIlroy", 
-                            "Nelly Korda", "Scottie Scheffler", "Collin Morikawa", "Rose Zhang",
-                            "Minjee Lee", "Viktor Hovland", "Jordan Spieth", "Lexi Thompson",
-                            "Jin Young Ko", "Jon Rahm", "Brooks Koepka", "Leona Maguire",
-                            "Xander Schauffele", "Ludvig Aberg", "Tommy Fleetwood", "Aditi Ashok"
-                        )
-                        val pName = extractedNameFromFilename ?: golferPool.random()
+                        val pName = sanitizePlayerName(extractedNameFromFilename ?: "")
                         val handicapVal = (2..28).random()
                         val currentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
                         
-                        val pars = listOf(4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 4, 4, 5, 3, 4, 4, 5)
+                        val pars = defaultPars
                         val scoreList = mutableListOf<Int>()
                         var birdiesCount = 0
                         var parsCount = 0
@@ -269,6 +276,8 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             handicap = handicapVal.toString(),
                             date = currentDate,
                             scoresJson = scoreList.toString(),
+                            parsJson = defaultPars.toString(),
+                            indicesJson = defaultIndices.toString(),
                             totalScore = totalSc,
                             notes = notesText,
                             imageUri = imageUri
@@ -277,9 +286,11 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                         // Parse clean JSON text (strip markdown ```json ``` wraps if returned by model)
                         val cleanedJson = cleanJsonResponse(rawResponse)
                         val json = JSONObject(cleanedJson)
-                        val pName = json.optString("playerName", "Unknown Golfer")
+                        val rawName = json.optString("playerName", "")
+                        val pName = sanitizePlayerName(rawName)
                         val hcap = json.optString("handicap", "")
                         val dt = json.optString("date", "")
+                        
                         val scoresArr = json.optJSONArray("scores")
                         val scoreList = mutableListOf<Int>()
                         if (scoresArr != null) {
@@ -288,8 +299,31 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             }
                         }
                         while (scoreList.size < 18) {
-                            scoreList.add(0)
+                            scoreList.add(4)
                         }
+
+                        val parsArr = json.optJSONArray("pars")
+                        val parsList = mutableListOf<Int>()
+                        if (parsArr != null) {
+                            for (i in 0 until parsArr.length()) {
+                                parsList.add(parsArr.getInt(i))
+                            }
+                        }
+                        while (parsList.size < 18) {
+                            parsList.add(defaultPars[parsList.size % 18])
+                        }
+
+                        val indicesArr = json.optJSONArray("indices")
+                        val indicesList = mutableListOf<Int>()
+                        if (indicesArr != null) {
+                            for (i in 0 until indicesArr.length()) {
+                                indicesList.add(indicesArr.getInt(i))
+                            }
+                        }
+                        while (indicesList.size < 18) {
+                            indicesList.add(defaultIndices[indicesList.size % 18])
+                        }
+
                         val totalSc = json.optInt("totalScore", scoreList.sum())
                         val notesText = json.optString("notes", "Extracted via Gemini AI Multimodal Digitizer.")
 
@@ -298,6 +332,8 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             handicap = hcap,
                             date = dt,
                             scoresJson = scoreList.toString(),
+                            parsJson = parsList.toString(),
+                            indicesJson = indicesList.toString(),
                             totalScore = if (totalSc > 0) totalSc else scoreList.sum(),
                             notes = notesText,
                             imageUri = imageUri

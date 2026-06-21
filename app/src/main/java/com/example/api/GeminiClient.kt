@@ -142,7 +142,7 @@ object GeminiClient {
             // System instructions to enforce rigid JSON compliance
             val sysInstObj = JSONObject()
             val sysPartsArray = JSONArray()
-            sysPartsArray.put(JSONObject().put("text", "You are an expert handwritten golf scorecard digitizer. You must analyze the image and output ONLY a single valid JSON object representing the scorecard fields, without any markdown formatting or ticks. Always return exactly 18 hole scores in the scores list."))
+            sysPartsArray.put(JSONObject().put("text", "You are an expert handwritten golf scorecard digitizer. You must analyze the image and output ONLY a single valid JSON object representing the scorecard fields, without any markdown formatting or ticks. Always return exactly 18 hole scores, individual hole PARs, and individual handicap indices."))
             sysInstObj.put("parts", sysPartsArray)
             root.put("systemInstruction", sysInstObj)
 
@@ -152,10 +152,12 @@ object GeminiClient {
             val promptParts = JSONArray()
 
             val promptText = """
-                Extract the player's name, handicap (if noted), date (e.g. 24/8), and the sequence of 18 hole scores for the player.
-                Holes 1 to 18 scores should be mapped to an array in correct sequential order. Use 0 for any missing or uncompleted holes.
-                Calculate or read the total score.
-                Then generate a concise notes bullet detailing their general play milestones.
+                Extract the player's name, handicap (if noted), date (e.g. 24/8), and individual hole PAR guidelines, handicap Index guidelines, and the sequence of 18 hole scores for the player.
+                - pars: 18-element array of PAR values for each hole. If not found, use standard par 72 defaults: [4,4,3,4,5,4,3,4,5, 4,3,4,4,5,3,4,4,5].
+                - indices: 18-element array of difficulty handicap indices for each hole. If not found, use defaults: [9,15,11,1,13,5,17,3,7, 10,18,12,2,14,6,16,4,8].
+                - scores: 18-element array of sequential scores/strokes. Use 4 if empty or unreadable.
+                - totalScore: sum of the scores array.
+                - Then generate notes detailing milestones.
                 
                 Format the result as this JSON structure:
                 {
@@ -163,6 +165,8 @@ object GeminiClient {
                   "handicap": "Handicap if found, else empty",
                   "date": "Date if found, else empty",
                   "scores": [18 numbers for holes 1 to 18 sequential scores],
+                  "pars": [18 numbers for holes 1 to 18 sequential PARs],
+                  "indices": [18 numbers for holes 1 to 18 sequential handicap indices],
                   "totalScore": 102,
                   "notes": "Brief bulleted or styled recap"
                 }

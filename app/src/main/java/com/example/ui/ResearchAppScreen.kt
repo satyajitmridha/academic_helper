@@ -9,6 +9,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -2526,6 +2528,211 @@ fun ScorecardTab(
                                 }
                             }
                         }
+
+                        // Detailed scorecard specification table
+                        val activePars = remember(activeCard) {
+                            try {
+                                if (!activeCard.parsJson.isNullOrBlank()) {
+                                    org.json.JSONArray(activeCard.parsJson).run {
+                                        List(length()) { getInt(it) }
+                                    }
+                                } else {
+                                    listOf(4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 4, 4, 5, 3, 4, 4, 5)
+                                }
+                            } catch (e: Exception) {
+                                listOf(4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 4, 4, 5, 3, 4, 4, 5)
+                            }
+                        }
+
+                        val activeIndices = remember(activeCard) {
+                            try {
+                                if (!activeCard.indicesJson.isNullOrBlank()) {
+                                    org.json.JSONArray(activeCard.indicesJson).run {
+                                        List(length()) { getInt(it) }
+                                    }
+                                } else {
+                                    listOf(9, 15, 11, 1, 13, 5, 17, 3, 7,  10, 18, 12, 2, 14, 6, 16, 4, 8)
+                                }
+                            } catch (e: Exception) {
+                                listOf(9, 15, 11, 1, 13, 5, 17, 3, 7,  10, 18, 12, 2, 14, 6, 16, 4, 8)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "📊 Detailed Digital Scorecard Specs (PAR, index, scores):",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = ProfessionalPrimary,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .border(1.dp, ProfessionalBorder, RoundedCornerShape(8.dp))
+                                .background(ProfessionalSecondary.copy(alpha = 0.4f))
+                        ) {
+                            // Left header labels column
+                            Column(
+                                modifier = Modifier
+                                    .background(ProfessionalCard)
+                                    .padding(vertical = 4.dp, horizontal = 6.dp)
+                                    .width(55.dp)
+                            ) {
+                                Text("HOLE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.height(24.dp), textAlign = TextAlign.Center)
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.3f)))
+                                Text("PAR", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.height(24.dp), textAlign = TextAlign.Center)
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.3f)))
+                                Text("INDEX", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.height(24.dp), textAlign = TextAlign.Center)
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.3f)))
+                                Text("SCORE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalText, modifier = Modifier.height(24.dp), textAlign = TextAlign.Center)
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.3f)))
+                                Text("+ / -", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalText, modifier = Modifier.height(24.dp), textAlign = TextAlign.Center)
+                            }
+
+                            // OUT columns (H1 to H9)
+                            for (i in 0..8) {
+                                val s = if (i < activeScores.size) activeScores[i] else 0
+                                val p = if (i < activePars.size) activePars[i] else 4
+                                val idx = if (i < activeIndices.size) activeIndices[i] else 1
+                                val diffVal = s - p
+                                val diffText = when {
+                                    s == 0 -> "-"
+                                    diffVal > 0 -> "+$diffVal"
+                                    diffVal < 0 -> "$diffVal"
+                                    else -> "E"
+                                }
+                                val diffColor = when {
+                                    s == 0 -> ProfessionalTextMuted
+                                    diffVal > 0 -> Color.Red
+                                    diffVal < 0 -> Color.Green
+                                    else -> ProfessionalText
+                                }
+
+                                Column(
+                                    modifier = Modifier
+                                        .width(34.dp)
+                                        .padding(vertical = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("${i + 1}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalPrimary, modifier = Modifier.height(24.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                    Text("$p", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = ProfessionalText, modifier = Modifier.height(24.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                    Text("$idx", fontSize = 9.sp, color = ProfessionalTextMuted, modifier = Modifier.height(24.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                    Text(if (s > 0) "$s" else "-", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (diffVal < 0) Color.Green else ProfessionalText, modifier = Modifier.height(24.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                    Text(diffText, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = diffColor, modifier = Modifier.height(24.dp))
+                                }
+                            }
+
+                            // OUT Summary
+                            val outPar = activePars.take(9).sum()
+                            val outScore = activeScores.take(9).sum()
+                            val outDiff = outScore - outPar
+                            Column(
+                                modifier = Modifier
+                                    .background(ProfessionalPrimary.copy(alpha = 0.11f))
+                                    .width(40.dp)
+                                    .padding(vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("OUT", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalPrimary, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("$outPar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalText, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("-", fontSize = 9.sp, color = ProfessionalTextMuted, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("$outScore", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalText, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text(if (outDiff > 0) "+$outDiff" else if (outDiff < 0) "$outDiff" else "E", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (outDiff > 0) Color.Red else if (outDiff < 0) Color.Green else ProfessionalText, modifier = Modifier.height(24.dp))
+                            }
+
+                            // IN columns (H10 to H18)
+                            for (i in 9..17) {
+                                val s = if (i < activeScores.size) activeScores[i] else 0
+                                val p = if (i < activePars.size) activePars[i] else 4
+                                val idx = if (i < activeIndices.size) activeIndices[i] else 1
+                                val diffVal = s - p
+                                val diffText = when {
+                                    s == 0 -> "-"
+                                    diffVal > 0 -> "+$diffVal"
+                                    diffVal < 0 -> "$diffVal"
+                                    else -> "E"
+                                }
+                                val diffColor = when {
+                                    s == 0 -> ProfessionalTextMuted
+                                    diffVal > 0 -> Color.Red
+                                    diffVal < 0 -> Color.Green
+                                    else -> ProfessionalText
+                                }
+
+                                Column(
+                                    modifier = Modifier
+                                        .width(34.dp)
+                                        .padding(vertical = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("${i + 1}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalPrimary, modifier = Modifier.height(24.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                    Text("$p", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = ProfessionalText, modifier = Modifier.height(24.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                    Text("$idx", fontSize = 9.sp, color = ProfessionalTextMuted, modifier = Modifier.height(24.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                    Text(if (s > 0) "$s" else "-", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (diffVal < 0) Color.Green else ProfessionalText, modifier = Modifier.height(24.dp))
+                                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                    Text(diffText, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = diffColor, modifier = Modifier.height(24.dp))
+                                }
+                            }
+
+                            // IN Summary
+                            val inPar = activePars.drop(9).take(9).sum()
+                            val inScore = activeScores.drop(9).take(9).sum()
+                            val inDiff = inScore - inPar
+                            Column(
+                                modifier = Modifier
+                                    .background(ProfessionalPrimary.copy(alpha = 0.11f))
+                                    .width(40.dp)
+                                    .padding(vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("IN", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalPrimary, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("$inPar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalText, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("-", fontSize = 9.sp, color = ProfessionalTextMuted, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("$inScore", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalText, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text(if (inDiff > 0) "+$inDiff" else if (inDiff < 0) "$inDiff" else "E", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (inDiff > 0) Color.Red else if (inDiff < 0) Color.Green else ProfessionalText, modifier = Modifier.height(24.dp))
+                            }
+
+                            // TOT Column
+                            val totPar = activePars.sum()
+                            val totScore = activeScores.sum()
+                            val totDiff = totScore - totPar
+                            Column(
+                                modifier = Modifier
+                                    .background(ProfessionalPrimary.copy(alpha = 0.22f))
+                                    .width(42.dp)
+                                    .padding(vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("TOT", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalPrimary, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("$totPar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalText, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("-", fontSize = 9.sp, color = ProfessionalTextMuted, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text("$totScore", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ProfessionalText, modifier = Modifier.height(24.dp))
+                                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(ProfessionalBorder.copy(alpha = 0.15f)))
+                                Text(if (totDiff > 0) "+$totDiff" else if (totDiff < 0) "$totDiff" else "E", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (totDiff > 0) Color.Red else if (totDiff < 0) Color.Green else ProfessionalText, modifier = Modifier.height(24.dp))
+                            }
+                        }
                     }
                 }
             }
@@ -2794,6 +3001,9 @@ fun ScorecardTab(
         var editedDate by remember(extractedScorecard) { mutableStateOf(extractedScorecard.date) }
         var editedNotes by remember(extractedScorecard) { mutableStateOf(extractedScorecard.notes) }
 
+        val defaultPars = remember { listOf(4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 4, 4, 5, 3, 4, 4, 5) }
+        val defaultIndices = remember { listOf(9, 15, 11, 1, 13, 5, 17, 3, 7,  10, 18, 12, 2, 14, 6, 16, 4, 8) }
+
         val parsedScores = remember(extractedScorecard) {
             try {
                 org.json.JSONArray(extractedScorecard.scoresJson).run {
@@ -2804,14 +3014,56 @@ fun ScorecardTab(
             }
         }
 
+        val parsedPars = remember(extractedScorecard) {
+            try {
+                if (!extractedScorecard.parsJson.isNullOrBlank()) {
+                    org.json.JSONArray(extractedScorecard.parsJson).run {
+                        List(length()) { getInt(it) }
+                    }
+                } else {
+                    defaultPars
+                }
+            } catch (e: Exception) {
+                defaultPars
+            }
+        }
+
+        val parsedIndices = remember(extractedScorecard) {
+            try {
+                if (!extractedScorecard.indicesJson.isNullOrBlank()) {
+                    org.json.JSONArray(extractedScorecard.indicesJson).run {
+                        List(length()) { getInt(it) }
+                    }
+                } else {
+                    defaultIndices
+                }
+            } catch (e: Exception) {
+                defaultIndices
+            }
+        }
+
         val editedScores = remember(extractedScorecard) {
             mutableStateListOf(*parsedScores.toTypedArray())
         }
 
+        val editedPars = remember(extractedScorecard) {
+            mutableStateListOf(*parsedPars.toTypedArray())
+        }
+
+        val editedIndices = remember(extractedScorecard) {
+            mutableStateListOf(*parsedIndices.toTypedArray())
+        }
+
         // Pad to exactly 18 elements
-        LaunchedEffect(editedScores) {
+        LaunchedEffect(editedScores, editedPars, editedIndices) {
             while (editedScores.size < 18) {
                 editedScores.add(0)
+            }
+            while (editedPars.size < 18) {
+                editedPars.add(defaultPars[editedPars.size % 18])
+            }
+            while (editedIndices.size < 18) {
+                editedIndices.add(defaultIndices[editedIndices.size % 18])
             }
         }
 
@@ -2819,7 +3071,7 @@ fun ScorecardTab(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.9f)
+                    .fillMaxHeight(0.95f)
                     .testTag("review_scorecard_dialog"),
                 colors = CardDefaults.cardColors(containerColor = ProfessionalCard),
                 shape = RoundedCornerShape(16.dp),
@@ -2838,7 +3090,7 @@ fun ScorecardTab(
                         color = ProfessionalText
                     )
                     Text(
-                        text = "Tweak any recognition gaps or strokes before committing to SQLite.",
+                        text = "Tweak recognition gaps, PAR guidelines, or handicap indexes before saving.",
                         fontSize = 11.sp,
                         color = ProfessionalTextMuted
                     )
@@ -2919,7 +3171,7 @@ fun ScorecardTab(
                                 ) {
                                     Text("Recalculated Play Total:", fontSize = 12.sp, color = ProfessionalText)
                                     Text(
-                                        text = "${editedScores.sum()} Strokes",
+                                        text = "${editedScores.sum()} Strokes (Par ${editedPars.sum()})",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
                                         color = ProfessionalPrimary
@@ -2928,10 +3180,10 @@ fun ScorecardTab(
                             }
                         }
 
-                        // 18 hole grid representation
+                        // 18 hole grid representation with PAR, index, score details
                         item {
                             Text(
-                                text = "⛳ Holes 1-18 Stroke Editors",
+                                text = "⛳ Holes 1-18 Stroke, PAR & Index Editors",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
                                 color = ProfessionalText,
@@ -2948,28 +3200,87 @@ fun ScorecardTab(
                                     .padding(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Column layout of 9 entries each
                                 Row(modifier = Modifier.fillMaxWidth()) {
                                     // Left Column (Holes 1 to 9)
-                                    Column(modifier = Modifier.weight(1f).padding(end = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Column(
+                                        modifier = Modifier.weight(1f).padding(end = 4.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
                                         Text("OUT (Holes 1-9)", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = ProfessionalPrimary)
+                                        
+                                        // Header Row for labels
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Hole", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.width(28.dp))
+                                            Text("PAR", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                                            Text("IDX", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                                            Text("SCORE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.weight(1.1f), textAlign = TextAlign.Center)
+                                        }
+
                                         for (i in 0..8) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text("Hole ${i + 1}:", fontSize = 11.sp, color = ProfessionalText)
-                                                val textValue = if (i < editedScores.size) "${editedScores[i]}" else "0"
+                                                Text("H${i + 1}", fontSize = 11.sp, color = ProfessionalText, modifier = Modifier.width(28.dp), fontWeight = FontWeight.Medium)
+                                                
+                                                // PAR input
+                                                val parVal = if (i < editedPars.size) "${editedPars[i]}" else "4"
                                                 OutlinedTextField(
-                                                    value = textValue,
+                                                    value = parVal,
+                                                    onValueChange = { newVal ->
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 4
+                                                        if (i < editedPars.size) {
+                                                            editedPars[i] = num
+                                                        }
+                                                    },
+                                                    modifier = Modifier.weight(1f).height(38.dp).testTag("edit_par_${i+1}"),
+                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = ProfessionalPrimary,
+                                                        unfocusedBorderColor = ProfessionalBorder,
+                                                        focusedTextColor = ProfessionalText,
+                                                        unfocusedTextColor = ProfessionalText
+                                                    ),
+                                                    singleLine = true
+                                                )
+
+                                                // Index input
+                                                val indexVal = if (i < editedIndices.size) "${editedIndices[i]}" else "9"
+                                                OutlinedTextField(
+                                                    value = indexVal,
+                                                    onValueChange = { newVal ->
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 1
+                                                        if (i < editedIndices.size) {
+                                                            editedIndices[i] = num
+                                                        }
+                                                    },
+                                                    modifier = Modifier.weight(1f).height(38.dp).testTag("edit_index_${i+1}"),
+                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, textAlign = TextAlign.Center),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = ProfessionalPrimary,
+                                                        unfocusedBorderColor = ProfessionalBorder,
+                                                        focusedTextColor = ProfessionalText,
+                                                        unfocusedTextColor = ProfessionalText
+                                                    ),
+                                                    singleLine = true
+                                                )
+
+                                                // Score input
+                                                val scoreVal = if (i < editedScores.size) "${editedScores[i]}" else "0"
+                                                OutlinedTextField(
+                                                    value = scoreVal,
                                                     onValueChange = { newVal ->
                                                         val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
                                                         if (i < editedScores.size) {
                                                             editedScores[i] = num
                                                         }
                                                     },
-                                                    modifier = Modifier.width(60.dp).height(40.dp).testTag("edit_hole_${i+1}"),
+                                                    modifier = Modifier.weight(1.1f).height(38.dp).testTag("edit_score_${i+1}"),
                                                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
                                                     colors = OutlinedTextFieldDefaults.colors(
                                                         focusedBorderColor = ProfessionalPrimary,
@@ -2983,28 +3294,88 @@ fun ScorecardTab(
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.width(8.dp).fillMaxHeight().background(ProfessionalBorder))
+                                    Spacer(modifier = Modifier.width(6.dp))
 
                                     // Right Column (Holes 10 to 18)
-                                    Column(modifier = Modifier.weight(1f).padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Column(
+                                        modifier = Modifier.weight(1f).padding(start = 4.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
                                         Text("IN (Holes 10-18)", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = ProfessionalPrimary)
+                                        
+                                        // Header Row for labels
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Hole", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.width(28.dp))
+                                            Text("PAR", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                                            Text("IDX", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                                            Text("SCORE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = ProfessionalTextMuted, modifier = Modifier.weight(1.1f), textAlign = TextAlign.Center)
+                                        }
+
                                         for (i in 9..17) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text("Hole ${i + 1}:", fontSize = 11.sp, color = ProfessionalText)
-                                                val textValue = if (i < editedScores.size) "${editedScores[i]}" else "0"
+                                                Text("H${i + 1}", fontSize = 11.sp, color = ProfessionalText, modifier = Modifier.width(28.dp), fontWeight = FontWeight.Medium)
+                                                
+                                                // PAR input
+                                                val parVal = if (i < editedPars.size) "${editedPars[i]}" else "4"
                                                 OutlinedTextField(
-                                                    value = textValue,
+                                                    value = parVal,
+                                                    onValueChange = { newVal ->
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 4
+                                                        if (i < editedPars.size) {
+                                                            editedPars[i] = num
+                                                        }
+                                                    },
+                                                    modifier = Modifier.weight(1f).height(38.dp).testTag("edit_par_${i+1}"),
+                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = ProfessionalPrimary,
+                                                        unfocusedBorderColor = ProfessionalBorder,
+                                                        focusedTextColor = ProfessionalText,
+                                                        unfocusedTextColor = ProfessionalText
+                                                    ),
+                                                    singleLine = true
+                                                )
+
+                                                // Index input
+                                                val indexVal = if (i < editedIndices.size) "${editedIndices[i]}" else "10"
+                                                OutlinedTextField(
+                                                    value = indexVal,
+                                                    onValueChange = { newVal ->
+                                                        val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 1
+                                                        if (i < editedIndices.size) {
+                                                            editedIndices[i] = num
+                                                        }
+                                                    },
+                                                    modifier = Modifier.weight(1f).height(38.dp).testTag("edit_index_${i+1}"),
+                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, textAlign = TextAlign.Center),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = ProfessionalPrimary,
+                                                        unfocusedBorderColor = ProfessionalBorder,
+                                                        focusedTextColor = ProfessionalText,
+                                                        unfocusedTextColor = ProfessionalText
+                                                    ),
+                                                    singleLine = true
+                                                )
+
+                                                // Score input
+                                                val scoreVal = if (i < editedScores.size) "${editedScores[i]}" else "0"
+                                                OutlinedTextField(
+                                                    value = scoreVal,
                                                     onValueChange = { newVal ->
                                                         val num = newVal.filter { it.isDigit() }.toIntOrNull() ?: 0
                                                         if (i < editedScores.size) {
                                                             editedScores[i] = num
                                                         }
                                                     },
-                                                    modifier = Modifier.width(60.dp).height(40.dp).testTag("edit_hole_${i+1}"),
+                                                    modifier = Modifier.weight(1.1f).height(38.dp).testTag("edit_score_${i+1}"),
                                                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
                                                     colors = OutlinedTextFieldDefaults.colors(
                                                         focusedBorderColor = ProfessionalPrimary,
@@ -3062,10 +3433,12 @@ fun ScorecardTab(
                                     date = editedDate,
                                     notes = editedNotes,
                                     scoresJson = org.json.JSONArray(editedScores.toList()).toString(),
+                                    parsJson = org.json.JSONArray(editedPars.toList()).toString(),
+                                    indicesJson = org.json.JSONArray(editedIndices.toList()).toString(),
                                     totalScore = editedScores.sum()
                                 )
                                 onSaveScorecard(finalCard)
-                            },
+                             },
                             modifier = Modifier.weight(1.5f).testTag("save_scorecard_button"),
                             colors = ButtonDefaults.buttonColors(containerColor = ProfessionalPrimary, contentColor = Color.Black),
                             shape = RoundedCornerShape(10.dp)
