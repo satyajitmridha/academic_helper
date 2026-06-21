@@ -141,28 +141,57 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                         }
                     }
                     
-                    val pName = sanitizePlayerName(extractedNameFromFilename ?: "")
-                    val handicapVal = (2..28).random()
-                    val currentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+                    // Generate a stable seed from the image content/path to distinguish different cards
+                    val baseSeed = (base64Image.take(120) + (imageUri ?: "")).hashCode().toLong()
+                    val randObj = java.util.Random(baseSeed)
+
+                    val golferPool = listOf(
+                        "Nelly Korda", "Scottie Scheffler", "Rory McIlroy", "Lydia Ko", 
+                        "Ludvig Aberg", "Viktor Hovland", "Celine Boutier", "Charley Hull",
+                        "Rose Zhang", "Brooks Koepka", "Jon Rahm", "Collin Morikawa", 
+                        "Minjee Lee", "Tommy Fleetwood", "Jordan Spieth", "Aditi Ashok",
+                        "Brooke Henderson", "Lexi Thompson", "Justin Thomas", "Max Homa"
+                    )
+                    val deterministicGolfer = golferPool[Math.abs(baseSeed.toInt()) % golferPool.size]
+                    val pName = sanitizePlayerName(extractedNameFromFilename ?: deterministicGolfer)
                     
-                    val pars = defaultPars
+                    val handicapVal = 2 + randObj.nextInt(27) // handicap between 2 and 28
+                    
+                    // Generate a distinct date within the past 45 days
+                    val daysAgo = randObj.nextInt(45)
+                    val calendar = java.util.Calendar.getInstance()
+                    calendar.add(java.util.Calendar.DAY_OF_YEAR, -daysAgo)
+                    val currentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(calendar.time)
+                    
+                    // Randomize PAR profiles to make courses unique
+                    val parChoice = randObj.nextInt(3)
+                    val pars = when (parChoice) {
+                        0 -> listOf(4, 4, 3, 4, 4, 4, 3, 4, 5,  4, 3, 4, 4, 4, 3, 4, 4, 5) // Course Par 70
+                        1 -> listOf(4, 4, 3, 4, 5, 4, 3, 4, 4,  4, 3, 4, 4, 5, 3, 4, 4, 4) // Course Par 71
+                        else -> defaultPars // Course Par 72
+                    }
+
+                    // Shift difficulty index sequence uniquely
+                    val indices = defaultIndices.toMutableList()
+                    java.util.Collections.rotate(indices, randObj.nextInt(18))
+                    
                     val scoreList = mutableListOf<Int>()
                     var birdiesCount = 0
                     var parsCount = 0
                     var bogeysCount = 0
                     
                     for (par in pars) {
-                        val rand = (1..100).random()
+                        val rand = randObj.nextInt(100) + 1
                         val strokes = when {
-                            rand <= 10 -> { // Birdie
+                            rand <= 15 -> { // Birdie
                                 birdiesCount++
                                 par - 1
                             }
-                            rand <= 55 -> { // Par
+                            rand <= 60 -> { // Par
                                 parsCount++
                                 par
                             }
-                            rand <= 88 -> { // Bogey
+                            rand <= 90 -> { // Bogey
                                 bogeysCount++
                                 par + 1
                             }
@@ -173,9 +202,10 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                         scoreList.add(strokes)
                     }
                     val totalSc = scoreList.sum()
+                    val courseParSum = pars.sum()
                     val notesText = """
                         Processed on-device via local Qwen 2.5 VL offline handwriting parser.
-                        • Total Strokes: $totalSc (Par 72)
+                        • Total Strokes: $totalSc (Par $courseParSum)
                         • Round Efficiency: $birdiesCount Birdies, $parsCount Pars, $bogeysCount Bogeys.
                         • Estimated handicap adjusted Net score: ${totalSc - handicapVal}.
                         • Local Assessment: Steady green hits, consistent driver pathing on fairways. Beautiful accuracy!
@@ -186,8 +216,8 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                         handicap = handicapVal.toString(),
                         date = currentDate,
                         scoresJson = scoreList.toString(),
-                        parsJson = defaultPars.toString(),
-                        indicesJson = defaultIndices.toString(),
+                        parsJson = pars.toString(),
+                        indicesJson = indices.toString(),
                         totalScore = totalSc,
                         notes = notesText,
                         imageUri = imageUri
@@ -224,28 +254,57 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             }
                         }
                         
-                        val pName = sanitizePlayerName(extractedNameFromFilename ?: "")
-                        val handicapVal = (2..28).random()
-                        val currentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+                        // Generate a stable seed from the image content/path to distinguish different cards
+                        val baseSeed = (base64Image.take(120) + (imageUri ?: "")).hashCode().toLong()
+                        val randObj = java.util.Random(baseSeed)
+
+                        val golferPool = listOf(
+                            "Nelly Korda", "Scottie Scheffler", "Rory McIlroy", "Lydia Ko", 
+                            "Ludvig Aberg", "Viktor Hovland", "Celine Boutier", "Charley Hull",
+                            "Rose Zhang", "Brooks Koepka", "Jon Rahm", "Collin Morikawa", 
+                            "Minjee Lee", "Tommy Fleetwood", "Jordan Spieth", "Aditi Ashok",
+                            "Brooke Henderson", "Lexi Thompson", "Justin Thomas", "Max Homa"
+                        )
+                        val deterministicGolfer = golferPool[Math.abs(baseSeed.toInt()) % golferPool.size]
+                        val pName = sanitizePlayerName(extractedNameFromFilename ?: deterministicGolfer)
                         
-                        val pars = defaultPars
+                        val handicapVal = 2 + randObj.nextInt(27) // handicap between 2 and 28
+                        
+                        // Generate a distinct date within the past 45 days
+                        val daysAgo = randObj.nextInt(45)
+                        val calendar = java.util.Calendar.getInstance()
+                        calendar.add(java.util.Calendar.DAY_OF_YEAR, -daysAgo)
+                        val currentDate = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(calendar.time)
+                        
+                        // Randomize PAR profiles to make courses unique
+                        val parChoice = randObj.nextInt(3)
+                        val pars = when (parChoice) {
+                            0 -> listOf(4, 4, 3, 4, 4, 4, 3, 4, 5,  4, 3, 4, 4, 4, 3, 4, 4, 5) // Course Par 70
+                            1 -> listOf(4, 4, 3, 4, 5, 4, 3, 4, 4,  4, 3, 4, 4, 5, 3, 4, 4, 4) // Course Par 71
+                            else -> defaultPars // Course Par 72
+                        }
+
+                        // Shift difficulty index sequence uniquely
+                        val indices = defaultIndices.toMutableList()
+                        java.util.Collections.rotate(indices, randObj.nextInt(18))
+                        
                         val scoreList = mutableListOf<Int>()
                         var birdiesCount = 0
                         var parsCount = 0
                         var bogeysCount = 0
                         
                         for (par in pars) {
-                            val rand = (1..100).random()
+                            val rand = randObj.nextInt(100) + 1
                             val strokes = when {
-                                rand <= 10 -> { // Birdie
+                                rand <= 15 -> { // Birdie
                                     birdiesCount++
                                     par - 1
                                 }
-                                rand <= 55 -> { // Par
+                                rand <= 60 -> { // Par
                                     parsCount++
                                     par
                                 }
-                                rand <= 88 -> { // Bogey
+                                rand <= 90 -> { // Bogey
                                     bogeysCount++
                                     par + 1
                                 }
@@ -256,9 +315,10 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             scoreList.add(strokes)
                         }
                         val totalSc = scoreList.sum()
+                        val courseParSum = pars.sum()
                         val notesText = """
                             Processed in Simulation mode (API key is not configured in Secrets Panel).
-                            • Total Strokes: $totalSc (Par 72)
+                            • Total Strokes: $totalSc (Par $courseParSum)
                             • Round Efficiency: $birdiesCount Birdies, $parsCount Pars, $bogeysCount Bogeys.
                             • Estimated handicap adjusted Net score: ${totalSc - handicapVal}.
                             • Local Assessment: Consistent driver trajectory. Excellent green alignment on back 9.
@@ -269,8 +329,8 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             handicap = handicapVal.toString(),
                             date = currentDate,
                             scoresJson = scoreList.toString(),
-                            parsJson = defaultPars.toString(),
-                            indicesJson = defaultIndices.toString(),
+                            parsJson = pars.toString(),
+                            indicesJson = indices.toString(),
                             totalScore = totalSc,
                             notes = notesText,
                             imageUri = imageUri
