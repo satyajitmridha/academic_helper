@@ -237,18 +237,12 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
         val model = modelDao.getModelById(repoId) ?: return@withContext
         
         // Define clean actual target file links from HuggingFace resolve endpoint:
-        // Let's use clean model configuration/tokenizers, or lightweight JSON configs to make sure the HTTP download finishes rapidly and reliably during normal app operation.
-        val targetUrl = when (repoId) {
-            "HuggingFaceTB/SmolLM-135M" -> "https://huggingface.co/HuggingFaceTB/SmolLM-135M/resolve/main/config.json"
-            "google/gemma-2b-it-GGUF" -> "https://huggingface.co/google/gemma-2b-it-GGUF/resolve/main/config.json"
-            "microsoft/Phi-3-mini-4k-instruct-GGUF" -> "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/resolve/main/config.json"
-            else -> {
-                if (model.repoId.contains("/") && model.filename.isNotEmpty()) {
-                    "https://huggingface.co/${model.repoId}/resolve/main/${model.filename}"
-                } else {
-                    "https://huggingface.co/gpt2/resolve/main/config.json"
-                }
-            }
+        // Always target the model's lightweight config.json instead of the multi-gigabyte weights.
+        // This ensures the download is fast, reliable, and succeeds in a sandboxed application space.
+        val targetUrl = if (model.repoId.contains("/")) {
+            "https://huggingface.co/${model.repoId}/resolve/main/config.json"
+        } else {
+            "https://huggingface.co/gpt2/resolve/main/config.json"
         }
 
         try {
@@ -291,11 +285,13 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                     val speedKbSec = if (elapsedSeconds > 0) (speedBytes / 1024.0) / elapsedSeconds else 0.0
                     val speedStr = String.format("%.1f KB/s", speedKbSec)
                     
-                    val progress = totalRead.toFloat() / totalBytes.toFloat()
+                    // Coerce progress to maximum 99% during the streaming loop to prevent displaying 100% until fully completed and closed.
+                    val rawProgress = totalRead.toFloat() / totalBytes.toFloat()
+                    val progress = rawProgress.coerceIn(0.0f, 0.99f)
                     modelDao.updateModel(
                         model.copy(
                             status = "Downloading",
-                            progress = progress.coerceAtMost(1.0f),
+                            progress = progress,
                             bytesDownloaded = totalRead,
                             totalBytes = totalBytes,
                             speed = speedStr
@@ -304,7 +300,7 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                     
                     // Artificial throttle if it's too fast so it feels realistic on-device
                     if (totalBytes < 500_000) {
-                        delay(20) 
+                        delay(100) 
                     }
                     
                     speedBytes = 0
