@@ -3587,6 +3587,32 @@ fun DocReaderTab(
                             label = { Text("Document Content Editor") },
                             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = ProfessionalText)
                         )
+
+                        val isTranslating by viewModel.isTranslating.collectAsState()
+
+                        Button(
+                            onClick = { viewModel.translateDocToBengali() },
+                            enabled = !isTranslating,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                                .testTag("translate_bengali_btn"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ProfessionalSecondary)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (isTranslating) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = ProfessionalPrimary, strokeWidth = 2.dp)
+                                    Text("Converting to Bengali...", fontWeight = FontWeight.Bold, color = ProfessionalPrimary)
+                                } else {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, tint = ProfessionalPrimary, modifier = Modifier.size(18.dp))
+                                    Text("Translate to Bengali (বাংলায় অনুবাদ করুন)", fontWeight = FontWeight.Bold, color = ProfessionalPrimary)
+                                }
+                            }
+                        }
                     }
                 }
             }

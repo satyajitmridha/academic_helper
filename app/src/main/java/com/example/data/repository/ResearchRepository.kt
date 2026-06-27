@@ -111,8 +111,8 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
 
     // Seed the database with sample academic papers if it's empty
     suspend fun prepopulatePapers() = withContext(Dispatchers.IO) {
-        // Always ensure the absolute best handwriting-to-text Vision LLMs are available to download
-        val bestHandwritingModels = listOf(
+        // Always ensure all default models are seeded and in sync
+        val allDefaultModels = listOf(
             HuggingFaceModel(
                 repoId = "Qwen/Qwen2.5-VL-3B-Instruct",
                 filename = "qwen2.5-vl-3b-instruct.gguf",
@@ -128,11 +128,75 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                 size = "2.2 gigabytes",
                 description = "Microsoft's lightweight dense vision-language model with supreme transcription accuracy for structured tables and handwriting.",
                 status = "Not Downloaded"
+            ),
+            HuggingFaceModel(
+                repoId = "HuggingFaceTB/SmolLM-135M",
+                filename = "smollm-135m-quantized.bin",
+                name = "SmolLM 135M Chat",
+                size = "135 megabytes",
+                description = "Ultra-lightweight local-first LLM engineered for edge devices, mobile processors, and offline chat simulation.",
+                status = "Not Downloaded"
+            ),
+            HuggingFaceModel(
+                repoId = "google/gemma-2b-it-ocr-GGUF",
+                filename = "gemma-2b-ocr.config.json",
+                name = "Gemma 2B OCR Model",
+                size = "1.4 megabytes",
+                description = "Google Gemma 2B instruction-tuned OCR parameter package optimized for reading text and document images offline.",
+                status = "Not Downloaded"
+            ),
+            HuggingFaceModel(
+                repoId = "microsoft/Phi-3-mini-4k-instruct-GGUF",
+                filename = "phi3-mini-config.json",
+                name = "Phi-3 Mini Config",
+                size = "235 kilobytes",
+                description = "Microsoft's state-of-the-art 3.8 billion parameter lightweight language model configuration file.",
+                status = "Not Downloaded"
+            ),
+            HuggingFaceModel(
+                repoId = "meta-llama/Llama-3.2-1B-Instruct",
+                filename = "llama-3.2-1b-instruct.gguf",
+                name = "Meta Llama 3.2 1B",
+                size = "1.2 gigabytes",
+                description = "High-performance lightweight meta reasoning instructions, fine-tuned for high coherence and deep statistical analytics.",
+                status = "Not Downloaded"
+            ),
+            HuggingFaceModel(
+                repoId = "Qwen/Qwen2.5-0.5B-Instruct",
+                filename = "qwen-2.5-0.5b-instruct.gguf",
+                name = "Qwen 2.5 0.5B Chat",
+                size = "950 megabytes",
+                description = "Comprehensive offline multi-lingual reasoning block specialized in science, coding structures, and statistical explanations.",
+                status = "Not Downloaded"
+            ),
+            HuggingFaceModel(
+                repoId = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+                filename = "deepseek-r1-qwen-1.5b.gguf",
+                name = "DeepSeek R1 Distill Qwen",
+                size = "1.6 gigabytes",
+                description = "First-tier reasoning distillation series utilizing deep reinforcement learning trajectories with rich chain-of-thought outputs.",
+                status = "Not Downloaded"
             )
         )
-        for (m in bestHandwritingModels) {
-            if (modelDao.getModelById(m.repoId) == null) {
+        
+        for (m in allDefaultModels) {
+            val existing = modelDao.getModelById(m.repoId)
+            if (existing == null) {
                 modelDao.insertModel(m)
+            }
+        }
+
+        // Check local filesystem and synchronize download states
+        for (m in allDefaultModels) {
+            val existing = modelDao.getModelById(m.repoId)
+            if (existing != null) {
+                val localFile = File(context.filesDir, existing.filename)
+                val fileExists = localFile.exists() && localFile.length() > 0
+                if (fileExists && existing.status != "Completed") {
+                    modelDao.updateModel(existing.copy(status = "Completed", progress = 1.0f, speed = "Ready"))
+                } else if (!fileExists && existing.status == "Completed") {
+                    modelDao.updateModel(existing.copy(status = "Not Downloaded", progress = 0.0f, speed = ""))
+                }
             }
         }
 
@@ -176,59 +240,6 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                 val insertedId = paperDao.insertPaper(p)
                 vectorizePaper(insertedId.toInt())
             }
-
-            // Seed default models
-            val sampleModels = listOf(
-                HuggingFaceModel(
-                    repoId = "HuggingFaceTB/SmolLM-135M",
-                    filename = "smollm-135m-quantized.bin",
-                    name = "SmolLM 135M Chat",
-                    size = "135 megabytes",
-                    description = "Ultra-lightweight local-first LLM engineered for edge devices, mobile processors, and offline chat simulation.",
-                    status = "Not Downloaded"
-                ),
-                HuggingFaceModel(
-                    repoId = "google/gemma-2b-it-ocr-GGUF",
-                    filename = "gemma-2b-ocr.config.json",
-                    name = "Gemma 2B OCR Model",
-                    size = "1.4 megabytes",
-                    description = "Google Gemma 2B instruction-tuned OCR parameter package optimized for reading text and document images offline.",
-                    status = "Not Downloaded"
-                ),
-                HuggingFaceModel(
-                    repoId = "microsoft/Phi-3-mini-4k-instruct-GGUF",
-                    filename = "phi3-mini-config.json",
-                    name = "Phi-3 Mini Config",
-                    size = "235 kilobytes",
-                    description = "Microsoft's state-of-the-art 3.8 billion parameter lightweight language model configuration file.",
-                    status = "Not Downloaded"
-                ),
-                HuggingFaceModel(
-                    repoId = "meta-llama/Llama-3.2-1B-Instruct",
-                    filename = "llama-3.2-1b-instruct.gguf",
-                    name = "Meta Llama 3.2 1B",
-                    size = "1.2 gigabytes",
-                    description = "High-performance lightweight meta reasoning instructions, fine-tuned for high coherence and deep statistical analytics.",
-                    status = "Not Downloaded"
-                ),
-                HuggingFaceModel(
-                    repoId = "Qwen/Qwen2.5-0.5B-Instruct",
-                    filename = "qwen-2.5-0.5b-instruct.gguf",
-                    name = "Qwen 2.5 0.5B Chat",
-                    size = "950 megabytes",
-                    description = "Comprehensive offline multi-lingual reasoning block specialized in science, coding structures, and statistical explanations.",
-                    status = "Not Downloaded"
-                ),
-                HuggingFaceModel(
-                    repoId = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-                    filename = "deepseek-r1-qwen-1.5b.gguf",
-                    name = "DeepSeek R1 Distill Qwen",
-                    size = "1.6 gigabytes",
-                    description = "First-tier reasoning distillation series utilizing deep reinforcement learning trajectories with rich chain-of-thought outputs.",
-                    status = "Not Downloaded"
-                )
-            )
-            modelDao.insertModels(sampleModels)
         }
     }
 
@@ -340,7 +351,7 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                 // Set total file sizes
                 val simulatedTotal = when (repoId) {
                     "HuggingFaceTB/SmolLM-135M" -> 270 * 1024L
-                    "google/gemma-2b-it-GGUF" -> 1500 * 1024 * 1024L
+                    "google/gemma-2b-it-ocr-GGUF" -> 1433 * 1024L // 1.4 megabytes config package
                     "microsoft/Phi-3-mini-4k-instruct-GGUF" -> 2200 * 1024 * 1024L
                     "meta-llama/Llama-3.2-1B-Instruct" -> 1200 * 1024 * 1024L
                     "Qwen/Qwen2.5-0.5B-Instruct" -> 950 * 1024 * 1024L
