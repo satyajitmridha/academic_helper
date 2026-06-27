@@ -50,6 +50,7 @@ import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.content.ContentValues
+import android.content.Intent
 import android.provider.MediaStore
 import com.example.data.GolfScorecard
 import coil.compose.AsyncImage
@@ -3613,6 +3614,51 @@ fun DocReaderTab(
                                 }
                             }
                         }
+
+                        Button(
+                            onClick = {
+                                if (docFileContent.isNotBlank()) {
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, docFileContent)
+                                        setPackage("com.whatsapp")
+                                    }
+                                    try {
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        try {
+                                            val businessIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, docFileContent)
+                                                setPackage("com.whatsapp.w4b")
+                                            }
+                                            context.startActivity(businessIntent)
+                                        } catch (ex: Exception) {
+                                            val generalIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, docFileContent)
+                                            }
+                                            context.startActivity(Intent.createChooser(generalIntent, "Share Document via..."))
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = docFileContent.isNotBlank(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp)
+                                .testTag("share_whatsapp_active_doc_btn"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Text("Share Active Doc via WhatsApp", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
                     }
                 }
             }
@@ -3821,6 +3867,41 @@ fun DocReaderTab(
                                     }
                                 ) {
                                     Icon(Icons.Default.PlayArrow, contentDescription = "Copy Content", tint = ProfessionalPrimary)
+                                }
+                                IconButton(
+                                    onClick = {
+                                        try {
+                                            val text = file.readText()
+                                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, text)
+                                                setPackage("com.whatsapp")
+                                            }
+                                            try {
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                try {
+                                                    val businessIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        type = "text/plain"
+                                                        putExtra(Intent.EXTRA_TEXT, text)
+                                                        setPackage("com.whatsapp.w4b")
+                                                    }
+                                                    context.startActivity(businessIntent)
+                                                } catch (ex: Exception) {
+                                                    val generalIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        type = "text/plain"
+                                                        putExtra(Intent.EXTRA_TEXT, text)
+                                                    }
+                                                    context.startActivity(Intent.createChooser(generalIntent, "Share Document via..."))
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Error sharing document.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("share_whatsapp_saved_doc_btn_${file.name.substringBeforeLast(".")}")
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = "Share via WhatsApp", tint = Color(0xFF25D366))
                                 }
                                 IconButton(
                                     onClick = {
