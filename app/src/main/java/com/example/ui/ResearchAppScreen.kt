@@ -120,17 +120,17 @@ fun ResearchAppScreen(
                             modifier = Modifier
                                 .size(12.dp)
                                 .clip(CircleShape)
-                                .background(if (activeModelMode.contains("Local")) Color(0xFF10B981) else Color(0xFFF59E0B))
+                                .background(if (scorecardEngineMode.contains("Local")) Color(0xFF10B981) else Color(0xFFF59E0B))
                         )
                         Column {
                             Text(
-                                "LocalResearch AI",
+                                "Golf Scorecard Digitizer",
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 fontSize = 18.sp
                             )
                             Text(
-                                if (activeModelMode.contains("Local")) "Offline Sandbox Enabled" else "Hybrid AI Connected",
+                                if (scorecardEngineMode.contains("Local")) "Offline Simulation Mode" else "Hybrid AI Connected",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
@@ -142,48 +142,6 @@ fun ResearchAppScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
-        },
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.background,
-                tonalElevation = 8.dp
-            ) {
-                NavigationBarItem(
-                    selected = activeTab == ActiveTab.LIBRARY,
-                    onClick = { viewModel.selectTab(ActiveTab.LIBRARY) },
-                    icon = { Icon(Icons.Default.List, contentDescription = "Library Navigation Icon") },
-                    label = { Text("Library") },
-                    modifier = Modifier.testTag("tab_library")
-                )
-                NavigationBarItem(
-                    selected = activeTab == ActiveTab.CHAT,
-                    onClick = { viewModel.selectTab(ActiveTab.CHAT) },
-                    icon = { Icon(Icons.Default.Face, contentDescription = "Private Sandbox Chatbot Navigator") },
-                    label = { Text("Chatbot") },
-                    modifier = Modifier.testTag("tab_chatbot")
-                )
-                NavigationBarItem(
-                    selected = activeTab == ActiveTab.MODELS,
-                    onClick = { viewModel.selectTab(ActiveTab.MODELS) },
-                    icon = { Icon(Icons.Default.Star, contentDescription = "HuggingFace Local LLM Download Station") },
-                    label = { Text("HuggingFace") },
-                    modifier = Modifier.testTag("tab_models")
-                )
-                NavigationBarItem(
-                    selected = activeTab == ActiveTab.GENERATION,
-                    onClick = { viewModel.selectTab(ActiveTab.GENERATION) },
-                    icon = { Icon(Icons.Default.PlayArrow, contentDescription = "AI Media Creator Suite") },
-                    label = { Text("AI Media") },
-                    modifier = Modifier.testTag("tab_generation")
-                )
-                NavigationBarItem(
-                    selected = activeTab == ActiveTab.SCORECARD,
-                    onClick = { viewModel.selectTab(ActiveTab.SCORECARD) },
-                    icon = { Icon(Icons.Default.Check, contentDescription = "Scorecard Performance Transcriber Dashboard") },
-                    label = { Text("Scorecard") },
-                    modifier = Modifier.testTag("tab_scorecard")
-                )
-            }
         }
     ) { innerPadding ->
         Box(
@@ -192,63 +150,19 @@ fun ResearchAppScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            when (activeTab) {
-                ActiveTab.LIBRARY -> LibraryTab(
-                    papers = currentPapers,
-                    selectedCitationStyle = selectedCitationStyle,
-                    onStyleSelected = { selectedCitationStyle = it },
-                    onDeletePaper = { viewModel.deletePaper(it) },
-                    onImportClick = { showImportDialog = true },
-                    onCopyAllClick = {
-                        val allFormatted = viewModel.exportCitations(selectedCitationStyle)
-                        clipboardManager.setText(AnnotatedString(allFormatted))
-                        Toast.makeText(context, "$selectedCitationStyle Citations Copied!", Toast.LENGTH_SHORT).show()
-                    }
-                )
-                ActiveTab.CHAT -> ChatTab(
-                    messages = chatMessages,
-                    isGenerating = isGenerating,
-                    activeModelMode = activeModelMode,
-                    systemStatus = systemStatus,
-                    onSendMessage = { viewModel.sendMessageToChatbot(it) },
-                    onClearHistory = { viewModel.clearChatLog() },
-                    onUploadFile = { viewModel.importPaperFromUri(it) }
-                )
-                ActiveTab.MODELS -> ModelsTab(
-                    models = hfModels,
-                    isDownloading = false,
-                    systemStatus = systemStatus,
-                    onDownloadModel = { viewModel.triggerHuggingFaceModelDownload(it) },
-                    activeModelMode = activeModelMode,
-                    onSelectModelMode = { viewModel.setModelMode(it) },
-                    onRegisterCustomModel = { repo, file, name, size, desc ->
-                        viewModel.registerCustomHFModel(repo, file, name, size, desc)
-                    }
-                )
-                ActiveTab.GENERATION -> GenerationTab(
-                    generatedImageUrl = generatedImageUrl,
-                    generatedVideoFrames = generatedVideoFrames,
-                    isGenerating = isGeneratingMedia,
-                    progress = generationProgress,
-                    history = mediaHistory,
-                    error = mediaError,
-                    onGenerateImage = { prompt, style -> viewModel.generateImage(prompt, style) },
-                    onGenerateVideo = { prompt, style -> viewModel.generateVideo(prompt, style) }
-                )
-                ActiveTab.SCORECARD -> ScorecardTab(
-                    scorecards = scorecards,
-                    isAnalyzing = isAnalyzingScorecard,
-                    extractedScorecard = extractedScorecard,
-                    error = scorecardAnalysisError,
-                    engineMode = scorecardEngineMode,
-                    onChangeEngineMode = { viewModel.setScorecardEngineMode(it) },
-                    onAnalyzeImage = { base64, uri -> viewModel.analyzeScorecardImage(base64, uri) },
-                    onSaveScorecard = { viewModel.saveExtractedScorecard(it) },
-                    onCancelExtraction = { viewModel.cancelScorecardExtraction() },
-                    onDeleteScorecard = { viewModel.deleteScorecard(it) },
-                    onClearAll = { viewModel.clearAllScorecards() }
-                )
-            }
+            ScorecardTab(
+                scorecards = scorecards,
+                isAnalyzing = isAnalyzingScorecard,
+                extractedScorecard = extractedScorecard,
+                error = scorecardAnalysisError,
+                engineMode = scorecardEngineMode,
+                onChangeEngineMode = { viewModel.setScorecardEngineMode(it) },
+                onAnalyzeImage = { base64, uri -> viewModel.analyzeScorecardImage(base64, uri) },
+                onSaveScorecard = { viewModel.saveExtractedScorecard(it) },
+                onCancelExtraction = { viewModel.cancelScorecardExtraction() },
+                onDeleteScorecard = { viewModel.deleteScorecard(it) },
+                onClearAll = { viewModel.clearAllScorecards() }
+            )
 
             // Paper Analysis Overlay / Progress Modal
             if (isAnalyzingPaper) {
