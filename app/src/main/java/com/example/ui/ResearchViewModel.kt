@@ -1166,7 +1166,16 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                             }
 
                             if (base64 != null) {
-                                val extracted = GeminiClient.analyzeImageForOcr(base64)
+                                val finalMime = when {
+                                    mimeType.isNotBlank() && mimeType != "application/octet-stream" -> mimeType
+                                    name.lowercase().endsWith(".pdf") -> "application/pdf"
+                                    name.lowercase().endsWith(".png") -> "image/png"
+                                    name.lowercase().endsWith(".webp") -> "image/webp"
+                                    name.lowercase().endsWith(".jpg") || name.lowercase().endsWith(".jpeg") -> "image/jpeg"
+                                    name.lowercase().endsWith(".gif") -> "image/gif"
+                                    else -> "image/jpeg"
+                                }
+                                val extracted = GeminiClient.analyzeImageForOcr(base64, finalMime)
                                 _docFileContent.value = extracted
                             } else {
                                 _docFileContent.value = "Failed to load file bytes for Cloud OCR. Falling back to simulated text."

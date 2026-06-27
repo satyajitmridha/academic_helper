@@ -3433,6 +3433,7 @@ fun DocReaderTab(
     val isReadingDoc by viewModel.isReadingDoc.collectAsState()
     val docReadingError by viewModel.docReadingError.collectAsState()
     val savedLocalDocs by viewModel.savedLocalDocs.collectAsState()
+    val hfModels by viewModel.hfModels.collectAsState()
 
     // Trigger local list on launch
     LaunchedEffect(Unit) {
@@ -3486,6 +3487,88 @@ fun DocReaderTab(
                         color = ProfessionalTextMuted,
                         lineHeight = 16.sp
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    val isApiKeyConfigured = GeminiClient.isApiKeyConfigured()
+                    val isGemmaDownloaded = hfModels.any { it.name.contains("Gemma") && it.status == "Completed" }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "OCR Engines Status:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ProfessionalTextMuted
+                        )
+                        
+                        if (isApiKeyConfigured) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFE8F5E9), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("Cloud Gemini: Active", color = Color(0xFF2E7D32), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFFFEBEE), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("Cloud Gemini: Inactive", color = Color(0xFFC62828), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        if (isGemmaDownloaded) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFE8F5E9), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("Local Gemma: Active", color = Color(0xFF2E7D32), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFFFF3E0), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("Local Gemma: Absent", color = Color(0xFFE65100), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    if (!isApiKeyConfigured && !isGemmaDownloaded) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFFFFDE7), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0xFFFFF59D), RoundedCornerShape(8.dp))
+                                .padding(8.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF57F17),
+                                    modifier = Modifier.size(16.dp).padding(top = 1.dp)
+                                )
+                                Text(
+                                    "Note: Running in offline simulation mode. To extract real text from documents, please configure your GEMINI_API_KEY in the Secrets panel, or download the Gemma model in the Models tab.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF5D4037),
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
