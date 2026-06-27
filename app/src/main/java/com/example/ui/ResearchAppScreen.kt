@@ -120,17 +120,25 @@ fun ResearchAppScreen(
                             modifier = Modifier
                                 .size(12.dp)
                                 .clip(CircleShape)
-                                .background(if (scorecardEngineMode.contains("Local")) Color(0xFF10B981) else Color(0xFFF59E0B))
+                                .background(if (scorecardEngineMode.contains("Local") || activeModelMode.contains("Local")) Color(0xFF10B981) else Color(0xFFF59E0B))
                         )
                         Column {
                             Text(
-                                "Golf Scorecard Digitizer",
+                                when (activeTab) {
+                                    ActiveTab.SCORECARD -> "Golf Scorecard Digitizer"
+                                    ActiveTab.MODELS -> "HuggingFace Models"
+                                    ActiveTab.DOC_READER -> "OCR Document Reader"
+                                },
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 fontSize = 18.sp
                             )
                             Text(
-                                if (scorecardEngineMode.contains("Local")) "Offline Simulation Mode" else "Hybrid AI Connected",
+                                when (activeTab) {
+                                    ActiveTab.SCORECARD -> if (scorecardEngineMode.contains("Local")) "Offline Simulation Mode" else "Hybrid AI Connected"
+                                    ActiveTab.MODELS -> "Gemma OCR Download Station"
+                                    ActiveTab.DOC_READER -> "Local Document Converter & Storage"
+                                },
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
@@ -142,6 +150,34 @@ fun ResearchAppScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.background,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = activeTab == ActiveTab.SCORECARD,
+                    onClick = { viewModel.selectTab(ActiveTab.SCORECARD) },
+                    icon = { Icon(Icons.Default.Check, contentDescription = "Scorecard Tab Indicator") },
+                    label = { Text("Scorecard") },
+                    modifier = Modifier.testTag("tab_scorecard")
+                )
+                NavigationBarItem(
+                    selected = activeTab == ActiveTab.MODELS,
+                    onClick = { viewModel.selectTab(ActiveTab.MODELS) },
+                    icon = { Icon(Icons.Default.Refresh, contentDescription = "Gemma OCR Models Download Station") },
+                    label = { Text("Models") },
+                    modifier = Modifier.testTag("tab_models")
+                )
+                NavigationBarItem(
+                    selected = activeTab == ActiveTab.DOC_READER,
+                    onClick = { viewModel.selectTab(ActiveTab.DOC_READER) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = "Local OCR Document Reader") },
+                    label = { Text("Doc Reader") },
+                    modifier = Modifier.testTag("tab_doc_reader")
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -150,19 +186,35 @@ fun ResearchAppScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            ScorecardTab(
-                scorecards = scorecards,
-                isAnalyzing = isAnalyzingScorecard,
-                extractedScorecard = extractedScorecard,
-                error = scorecardAnalysisError,
-                engineMode = scorecardEngineMode,
-                onChangeEngineMode = { viewModel.setScorecardEngineMode(it) },
-                onAnalyzeImage = { base64, uri -> viewModel.analyzeScorecardImage(base64, uri) },
-                onSaveScorecard = { viewModel.saveExtractedScorecard(it) },
-                onCancelExtraction = { viewModel.cancelScorecardExtraction() },
-                onDeleteScorecard = { viewModel.deleteScorecard(it) },
-                onClearAll = { viewModel.clearAllScorecards() }
-            )
+            when (activeTab) {
+                ActiveTab.SCORECARD -> ScorecardTab(
+                    scorecards = scorecards,
+                    isAnalyzing = isAnalyzingScorecard,
+                    extractedScorecard = extractedScorecard,
+                    error = scorecardAnalysisError,
+                    engineMode = scorecardEngineMode,
+                    onChangeEngineMode = { viewModel.setScorecardEngineMode(it) },
+                    onAnalyzeImage = { base64, uri -> viewModel.analyzeScorecardImage(base64, uri) },
+                    onSaveScorecard = { viewModel.saveExtractedScorecard(it) },
+                    onCancelExtraction = { viewModel.cancelScorecardExtraction() },
+                    onDeleteScorecard = { viewModel.deleteScorecard(it) },
+                    onClearAll = { viewModel.clearAllScorecards() }
+                )
+                ActiveTab.MODELS -> ModelsTab(
+                    models = hfModels,
+                    isDownloading = false,
+                    systemStatus = systemStatus,
+                    onDownloadModel = { viewModel.triggerHuggingFaceModelDownload(it) },
+                    activeModelMode = activeModelMode,
+                    onSelectModelMode = { viewModel.setModelMode(it) },
+                    onRegisterCustomModel = { repo, file, name, size, desc ->
+                        viewModel.registerCustomHFModel(repo, file, name, size, desc)
+                    }
+                )
+                ActiveTab.DOC_READER -> DocReaderTab(
+                    viewModel = viewModel
+                )
+            }
 
             // Paper Analysis Overlay / Progress Modal
             if (isAnalyzingPaper) {
@@ -3368,5 +3420,400 @@ fun ScorecardCellInput(
             }
         }
     )
+}
+
+@Composable
+fun DocReaderTab(
+    viewModel: ResearchViewModel
+) {
+    val context = LocalContext.current
+    val docFileName by viewModel.docFileName.collectAsState()
+    val docFileContent by viewModel.docFileContent.collectAsState()
+    val isReadingDoc by viewModel.isReadingDoc.collectAsState()
+    val docReadingError by viewModel.docReadingError.collectAsState()
+    val savedLocalDocs by viewModel.savedLocalDocs.collectAsState()
+
+    // Trigger local list on launch
+    LaunchedEffect(Unit) {
+        viewModel.refreshSavedLocalDocs(context)
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.readUploadedFile(context, uri)
+        }
+    }
+
+    var outputFileName by remember { mutableStateOf("") }
+    var selectedFormat by remember { mutableStateOf("TXT") } // TXT, DOC, HTML, JSON
+
+    // Keep output file name in sync with loaded doc filename
+    LaunchedEffect(docFileName) {
+        if (docFileName.isNotEmpty()) {
+            outputFileName = docFileName.substringBeforeLast(".")
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = ProfessionalCard)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = ProfessionalPrimary, modifier = Modifier.size(32.dp))
+                    Text(
+                        "Local OCR & Document Builder",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = ProfessionalText
+                    )
+                    Text(
+                        "Upload documents, text files, or images. The system parses them locally using downloaded model weights (e.g. Gemma 2B OCR) or hybrid AI, and compiles them into refined documents that you can save directly to your secure device storage.",
+                        fontSize = 12.sp,
+                        color = ProfessionalTextMuted,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = ProfessionalCard)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "1. Upload or Scan File",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = ProfessionalText
+                    )
+
+                    Button(
+                        onClick = { filePickerLauncher.launch("*/*") },
+                        modifier = Modifier.fillMaxWidth().testTag("upload_doc_btn"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ProfessionalPrimary)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Select Document / Image", fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (isReadingDoc) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(36.dp), color = ProfessionalPrimary)
+                            Text("Running OCR & Transcription Engine...", fontSize = 12.sp, color = ProfessionalPrimary, fontWeight = FontWeight.Medium)
+                        }
+                    }
+
+                    docReadingError?.let { err ->
+                        Text(
+                            text = err,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (docFileContent.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "2. Refine Extracted Transcript",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = ProfessionalText
+                            )
+                            IconButton(onClick = { viewModel.clearDocReader() }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Clear file contents", tint = Color.Red)
+                            }
+                        }
+
+                        Text(
+                            text = "Loaded file: $docFileName",
+                            fontSize = 12.sp,
+                            color = ProfessionalPrimary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        OutlinedTextField(
+                            value = docFileContent,
+                            onValueChange = { viewModel.updateDocFileContent(it) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 180.dp, max = 320.dp)
+                                .testTag("doc_text_editor"),
+                            label = { Text("Document Content Editor") },
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = ProfessionalText)
+                        )
+                    }
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            "3. Compile & Save Document",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = ProfessionalText
+                        )
+
+                        OutlinedTextField(
+                            value = outputFileName,
+                            onValueChange = { outputFileName = it },
+                            label = { Text("Save Document As (File Name)") },
+                            modifier = Modifier.fillMaxWidth().testTag("save_doc_name_input"),
+                            singleLine = true
+                        )
+
+                        Text("Choose Format:", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = ProfessionalTextMuted)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("TXT", "DOC", "HTML", "JSON").forEach { format ->
+                                val selected = selectedFormat == format
+                                Card(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { selectedFormat = format }
+                                        .border(
+                                            1.dp,
+                                            if (selected) ProfessionalPrimary else ProfessionalBorder,
+                                            RoundedCornerShape(8.dp)
+                                        ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (selected) ProfessionalSecondary else Color.Transparent
+                                    )
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = format,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = if (selected) ProfessionalPrimary else ProfessionalText
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                if (outputFileName.isBlank()) {
+                                    Toast.makeText(context, "Please specify a file name!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val savedFile = viewModel.saveDocumentLocally(context, outputFileName.trim(), docFileContent, selectedFormat)
+                                    if (savedFile != null) {
+                                        Toast.makeText(
+                                            context,
+                                            "Saved Document successfully!\nPath: ${savedFile.name}",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        // Reset/clear
+                                        viewModel.clearDocReader()
+                                    } else {
+                                        Toast.makeText(context, "Failed to compile document.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("save_compiled_doc_btn"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ProfessionalSuccess)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text("Compile & Save to Local Storage", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                "Saved Local Documents (${savedLocalDocs.size})",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        if (savedLocalDocs.isEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp)
+                        .border(1.dp, ProfessionalBorder.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard.copy(alpha = 0.6f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = ProfessionalTextMuted.copy(alpha = 0.5f),
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Text(
+                            "No local documents compiled yet.",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = ProfessionalTextMuted
+                        )
+                        Text(
+                            "Upload a scorecard scan, study paper, or raw transcript to begin local compilation.",
+                            fontSize = 11.sp,
+                            color = ProfessionalTextMuted.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            items(savedLocalDocs) { file ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ProfessionalBorder, RoundedCornerShape(16.dp))
+                        .testTag("saved_doc_${file.name.substringBeforeLast(".")}"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = ProfessionalCard)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(ProfessionalSecondary.copy(alpha = 0.5f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = file.extension.uppercase(),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 10.sp,
+                                        color = ProfessionalPrimary
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = file.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = ProfessionalText
+                                    )
+                                    Text(
+                                        text = "${String.format("%.1f", file.length() / 1024.0)} KB • ${java.text.SimpleDateFormat("dd MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified()))}",
+                                        fontSize = 11.sp,
+                                        color = ProfessionalTextMuted
+                                    )
+                                }
+                            }
+
+                            Row {
+                                val clipboardManager = LocalClipboardManager.current
+                                IconButton(
+                                    onClick = {
+                                        try {
+                                            val text = file.readText()
+                                            clipboardManager.setText(AnnotatedString(text))
+                                            Toast.makeText(context, "${file.name} copied to clipboard!", Toast.LENGTH_SHORT).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Error copying document.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = "Copy Content", tint = ProfessionalPrimary)
+                                }
+                                IconButton(
+                                    onClick = {
+                                        viewModel.deleteSavedDoc(context, file)
+                                        Toast.makeText(context, "Document deleted.", Toast.LENGTH_SHORT).show()
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete Document", tint = Color.Red)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
 }
 

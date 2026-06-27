@@ -229,5 +229,84 @@ object GeminiClient {
             return@withContext "Error: ${e.localizedMessage}"
         }
     }
+
+    /**
+     * Extracts text or document content from an uploaded file image via Gemini.
+     */
+    suspend fun analyzeImageForOcr(
+        base64Image: String,
+        mimeType: String = "image/jpeg"
+    ): String = withContext(Dispatchers.IO) {
+        if (!isApiKeyConfigured()) {
+            return@withContext "API_MOCK"
+        }
+
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+
+        try {
+            val root = JSONObject()
+
+            val sysInstObj = JSONObject()
+            val sysPartsArray = JSONArray()
+            sysPartsArray.put(JSONObject().put("text", "You are an expert Document OCR system. Extract and neatly format all readable text from the provided image. Preserve document structure, headings, lists, and paragraphs, and return clean markdown."))
+            sysInstObj.put("parts", sysPartsArray)
+            root.put("systemInstruction", sysInstObj)
+
+            val contentsArray = JSONArray()
+            val promptObj = JSONObject()
+            val promptParts = JSONArray()
+
+            promptParts.put(JSONObject().put("text", "Extract and transcribe all text in this document image clearly and cleanly."))
+
+            val imagePart = JSONObject()
+            val inlineDataObj = JSONObject()
+            inlineDataObj.put("mimeType", mimeType)
+            inlineDataObj.put("data", base64Image)
+            imagePart.put("inlineData", inlineDataObj)
+            promptParts.put(imagePart)
+
+            promptObj.put("role", "user")
+            promptObj.put("parts", promptParts)
+            contentsArray.put(promptObj)
+            root.put("contents", contentsArray)
+
+            val configObj = JSONObject()
+            configObj.put("temperature", 0.1)
+            root.put("generationConfig", configObj)
+
+            val requestBodyStr = root.toString()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val requestBody = requestBodyStr.toRequestBody(mediaType)
+
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val bodyString = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    return@withContext "OCR Processing Error: HTTP ${response.code}\n$bodyString"
+                }
+
+                val respJson = JSONObject(bodyString)
+                val candidates = respJson.optJSONArray("candidates")
+                if (candidates != null && candidates.length() > 0) {
+                    val candidate = candidates.getJSONObject(0)
+                    val content = candidate.optJSONObject("content")
+                    if (content != null) {
+                        val parts = content.optJSONArray("parts")
+                        if (parts != null && parts.length() > 0) {
+                            return@withContext parts.getJSONObject(0).optString("text")
+                        }
+                    }
+                }
+                "Failed to parse text candidates from API response."
+            }
+        } catch (e: Exception) {
+            "Error running Cloud OCR: ${e.localizedMessage}"
+        }
+    }
 }
 

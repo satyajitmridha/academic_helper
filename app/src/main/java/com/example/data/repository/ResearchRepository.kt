@@ -188,11 +188,11 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                     status = "Not Downloaded"
                 ),
                 HuggingFaceModel(
-                    repoId = "google/gemma-2b-it-GGUF",
-                    filename = "gemma-2b-it.config.json",
-                    name = "Gemma 2B IT Config",
-                    size = "1.2 megabytes",
-                    description = "Google Gemma 2B instruction-tuned model parameters and vocabulary tokens configured for local testing.",
+                    repoId = "google/gemma-2b-it-ocr-GGUF",
+                    filename = "gemma-2b-ocr.config.json",
+                    name = "Gemma 2B OCR Model",
+                    size = "1.4 megabytes",
+                    description = "Google Gemma 2B instruction-tuned OCR parameter package optimized for reading text and document images offline.",
                     status = "Not Downloaded"
                 ),
                 HuggingFaceModel(
