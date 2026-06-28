@@ -146,6 +146,14 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                 status = "Not Downloaded"
             ),
             HuggingFaceModel(
+                repoId = "google/gemma-2-4b-it",
+                filename = "gemma-2-4b-it.config.json",
+                name = "Gemma 4 Local Model",
+                size = "2.8 gigabytes",
+                description = "Google Gemma 2 4B instruction-tuned local model, optimized for powerful offline text recognition, document parsing, and edge intelligence.",
+                status = "Not Downloaded"
+            ),
+            HuggingFaceModel(
                 repoId = "microsoft/Phi-3-mini-4k-instruct-GGUF",
                 filename = "phi3-mini-config.json",
                 name = "Phi-3 Mini Config",

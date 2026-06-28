@@ -3640,6 +3640,9 @@ fun DocReaderTab(
                             fontWeight = FontWeight.SemiBold
                         )
 
+                        val containsBengali = docFileContent.any { it.code in 0x0980..0x09FF }
+                        val editorFontFamily = if (containsBengali) FontFamily.Default else FontFamily.Monospace
+
                         OutlinedTextField(
                             value = docFileContent,
                             onValueChange = { viewModel.updateDocFileContent(it) },
@@ -3648,7 +3651,7 @@ fun DocReaderTab(
                                 .heightIn(min = 180.dp, max = 320.dp)
                                 .testTag("doc_text_editor"),
                             label = { Text("Document Content Editor") },
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = ProfessionalText)
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontFamily = editorFontFamily, color = ProfessionalText)
                         )
 
                         val isTranslating by viewModel.isTranslating.collectAsState()
