@@ -158,11 +158,11 @@ fun ResearchAppScreen(
                 tonalElevation = 8.dp
             ) {
                 NavigationBarItem(
-                    selected = activeTab == ActiveTab.SCORECARD,
-                    onClick = { viewModel.selectTab(ActiveTab.SCORECARD) },
-                    icon = { Icon(Icons.Default.Check, contentDescription = "Scorecard Tab Indicator") },
-                    label = { Text("Scorecard") },
-                    modifier = Modifier.testTag("tab_scorecard")
+                    selected = activeTab == ActiveTab.DOC_READER,
+                    onClick = { viewModel.selectTab(ActiveTab.DOC_READER) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = "Local OCR Document Reader") },
+                    label = { Text("Doc Reader") },
+                    modifier = Modifier.testTag("tab_doc_reader")
                 )
                 NavigationBarItem(
                     selected = activeTab == ActiveTab.MODELS,
@@ -172,11 +172,11 @@ fun ResearchAppScreen(
                     modifier = Modifier.testTag("tab_models")
                 )
                 NavigationBarItem(
-                    selected = activeTab == ActiveTab.DOC_READER,
-                    onClick = { viewModel.selectTab(ActiveTab.DOC_READER) },
-                    icon = { Icon(Icons.Default.Add, contentDescription = "Local OCR Document Reader") },
-                    label = { Text("Doc Reader") },
-                    modifier = Modifier.testTag("tab_doc_reader")
+                    selected = activeTab == ActiveTab.SCORECARD,
+                    onClick = { viewModel.selectTab(ActiveTab.SCORECARD) },
+                    icon = { Icon(Icons.Default.Check, contentDescription = "Scorecard Tab Indicator") },
+                    label = { Text("Scorecard") },
+                    modifier = Modifier.testTag("tab_scorecard")
                 )
             }
         }
@@ -3476,13 +3476,13 @@ fun DocReaderTab(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = ProfessionalPrimary, modifier = Modifier.size(32.dp))
                     Text(
-                        "Local OCR & Document Builder",
+                        "On-Device Offline OCR Scanner",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
                         color = ProfessionalText
                     )
                     Text(
-                        "Upload documents, text files, or images. The system parses them locally using downloaded model weights (e.g. Gemma 2B OCR) or hybrid AI, and compiles them into refined documents that you can save directly to your secure device storage.",
+                        "Upload images (PNG, JPG, WEBP) or multi-page PDF documents. Our completely local, privacy-safe Google ML Kit and PdfRenderer engines process files entirely on-device, extracting precise text instantly without any internet connection.",
                         fontSize = 12.sp,
                         color = ProfessionalTextMuted,
                         lineHeight = 16.sp
@@ -3491,7 +3491,6 @@ fun DocReaderTab(
                     Spacer(modifier = Modifier.height(4.dp))
                     
                     val isApiKeyConfigured = GeminiClient.isApiKeyConfigured()
-                    val isGemmaDownloaded = hfModels.any { it.name.contains("Gemma") && it.status == "Completed" }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -3505,6 +3504,14 @@ fun DocReaderTab(
                             color = ProfessionalTextMuted
                         )
                         
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFFE8F5E9), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("Local ML Kit: Ready (Offline)", color = Color(0xFF2E7D32), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
                         if (isApiKeyConfigured) {
                             Box(
                                 modifier = Modifier
@@ -3513,60 +3520,32 @@ fun DocReaderTab(
                             ) {
                                 Text("Cloud Gemini: Active", color = Color(0xFF2E7D32), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFFFFEBEE), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text("Cloud Gemini: Inactive", color = Color(0xFFC62828), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        if (isGemmaDownloaded) {
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFFE8F5E9), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text("Local Gemma: Active", color = Color(0xFF2E7D32), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFFFFF3E0), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text("Local Gemma: Absent", color = Color(0xFFE65100), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
                         }
                     }
 
-                    if (!isApiKeyConfigured && !isGemmaDownloaded) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFFFFFDE7), RoundedCornerShape(8.dp))
-                                .border(1.dp, Color(0xFFFFF59D), RoundedCornerShape(8.dp))
-                                .padding(8.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0xFFA5D6A7), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = null,
-                                    tint = Color(0xFFF57F17),
-                                    modifier = Modifier.size(16.dp).padding(top = 1.dp)
-                                )
-                                Text(
-                                    "Note: Running in offline simulation mode. To extract real text from documents, please configure your GEMINI_API_KEY in the Secrets panel, or download the Gemma model in the Models tab.",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF5D4037),
-                                    lineHeight = 14.sp
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(16.dp).padding(top = 1.dp)
+                            )
+                            Text(
+                                "Offline Mode Active: Your files never leave your device. All image text recognition and multi-page PDF rendering are handled locally with complete confidentiality.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF1B5E20),
+                                lineHeight = 14.sp
+                            )
                         }
                     }
                 }

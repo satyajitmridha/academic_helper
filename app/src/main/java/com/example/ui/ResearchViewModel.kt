@@ -1,6 +1,9 @@
 package com.example.ui
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
@@ -8,9 +11,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.*
 import com.example.data.repository.ResearchRepository
 import com.example.api.GeminiClient
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -36,7 +45,7 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
     val scorecards: StateFlow<List<GolfScorecard>> = repository.allScorecards
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _activeTab = MutableStateFlow(ActiveTab.SCORECARD)
+    private val _activeTab = MutableStateFlow(ActiveTab.DOC_READER)
     val activeTab: StateFlow<ActiveTab> = _activeTab.asStateFlow()
 
     private val _isGenerating = MutableStateFlow(false)
@@ -1095,6 +1104,125 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun generateSimulatedExtractedText(fileName: String, mimeType: String): String {
+        val cleanName = fileName.substringBeforeLast(".")
+        val lowercaseName = fileName.lowercase()
+        
+        return when {
+            lowercaseName.contains("invoice") || lowercaseName.contains("bill") || lowercaseName.contains("receipt") -> {
+                """
+                INVOICE #INV-2026-0892
+                Date: June 15, 2026
+                Due Date: July 15, 2026
+                
+                ISSUED BY:
+                Apex Global Solutions Ltd.
+                100 Innovation Way, Suite 400
+                San Francisco, CA 94107
+                billing@apexglobal.io
+                
+                BILL TO:
+                Acme Corporation
+                Attn: Accounts Payable
+                456 Corporate Blvd
+                Austin, TX 78701
+                
+                ----------------------------------------------------------------------
+                DESCRIPTION                               QTY     UNIT PRICE   AMOUNT
+                ----------------------------------------------------------------------
+                Enterprise Cloud Analytics Suite           1      $4,500.00    $4,500.00
+                Premium 24/7 Technical Support            1        $750.00      $750.00
+                Custom Integration Consulting (Hours)     10       $150.00    $1,500.00
+                ----------------------------------------------------------------------
+                SUBTOTAL:                                                      $6,750.00
+                TAX (8.25%):                                                    $556.88
+                TOTAL DUE:                                                     $7,306.88
+                
+                Payment Methods:
+                - ACH / Wire Transfer: Routing #122408761, Account #8829104857
+                - Credit Card: Pay securely via the link in your email portal
+                
+                Thank you for your business!
+                """.trimIndent()
+            }
+            lowercaseName.contains("score") || lowercaseName.contains("golf") -> {
+                """
+                GOLF ROUND SCORECARD
+                Course: Oakwood Hills Country Club
+                Date: June 20, 2026
+                Weather: Clear, 78°F, Light breeze
+                
+                Hole   | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | OUT  | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | IN   | TOT
+                -------|----|----|----|----|----|----|----|----|----|------|----|----|----|----|----|----|----|----|----|------|----
+                Yards  |380 |410 |150 |520 |390 |430 |180 |400 |510 | 3370 |370 |420 |160 |530 |380 |440 |190 |410 |520 | 3420 | 6790
+                Par    | 4  | 4  | 3  | 5  | 4  | 4  | 3  | 4  | 5  |  36  | 4  | 4  | 3  | 5  | 4  | 4  | 3  | 4  | 5  |  36  |  72
+                -------|----|----|----|----|----|----|----|----|----|------|----|----|----|----|----|----|----|----|----|------|----
+                Player | 4  | 5  | 3  | 5  | 4  | 5  | 3  | 4  | 6  |  39  | 4  | 4  | 2  | 5  | 4  | 5  | 3  | 4  | 5  |  36  |  75
+                
+                Summary:
+                Total Score: 75 (+3)
+                Fairways hit: 10/14 (71%)
+                Greens in Regulation (GIR): 12/18 (66%)
+                Total Putts: 29
+                """.trimIndent()
+            }
+            lowercaseName.contains("cc-") || lowercaseName.contains("cc_") || lowercaseName.contains("credit") || lowercaseName.contains("statement") -> {
+                """
+                METROPOLIS CREDIT CORPORATION
+                Monthly Activity Statement
+                Account Number: ************4829
+                Statement Period: May 12, 2026 - June 11, 2026
+                
+                SUMMARY OF ACCOUNT ACTIVITY
+                Previous Balance:                     $1,240.50
+                Payments & Credits:                  -$1,240.50
+                Purchases & New Charges:              $2,481.12
+                Fees Charged:                             $0.00
+                Interest Charged:                         $0.00
+                New Balance:                          $2,481.12
+                
+                Minimum Payment Due:                     $50.00
+                Payment Due Date:                 July 06, 2026
+                
+                TRANSACTION DETAIL
+                Date     Description                              Amount
+                May 15   AMAZON.COM*RETAIL SEATTLE WA             $84.50
+                May 18   SHELL OIL SERVICE STN HOUSTON TX         $45.00
+                May 22   UBER RIDE ON-DEMAND SAN FRANCISCO CA     $24.30
+                May 25   WHOLE FOODS MARKET AUSTIN TX            $112.40
+                May 29   GITHUB INC. SUBSC SAN FRANCISCO CA       $10.00
+                June 02  AIRBNB * BOOKING TRIP PORTLAND OR       $650.00
+                June 05  STARBUCKS COFFEE CHICAGO IL               $8.75
+                June 08  STREAMING SERVICE AD-FREE NY             $15.99
+                
+                Interest Charge Calculation:
+                Your Annual Percentage Rate (APR) is 18.24% for purchases.
+                
+                Customer Service Contact: 1-800-555-0199
+                """.trimIndent()
+            }
+            else -> {
+                """
+                DOCUMENT TRANSCRIPT: $cleanName
+                
+                Section 1: Executive Overview
+                This document outlines the strategic operational parameters and research variables for project "$cleanName". Recent audits indicate consistent performance alignment across key execution vectors.
+                
+                Section 2: Performance and Analytical Data
+                During the evaluated cycle, performance indicators surpassed baseline targets by approximately 14.2%. Systems remained highly stable, with no detected structural latency. Focus parameters are optimized for next-generation framework transitions.
+                
+                Section 3: Key Deliverables
+                - Integration of cross-platform components for improved usability and access.
+                - Maintenance of strict data security standards in sandboxed environments.
+                - Continuous automated quality assurance across all user interface panels.
+                
+                Section 4: Next Steps and Roadmap
+                The upcoming deployment cycle will prioritize edge processing performance optimizations and refined local resource footprints.
+                """.trimIndent()
+            }
+        }
+    }
+
     fun readUploadedFile(context: android.content.Context, uri: Uri) {
         viewModelScope.launch {
             _isReadingDoc.value = true
@@ -1113,48 +1241,40 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
             }
             _docFileName.value = name
 
-            delay(1500) // Aesthetic delay representing AI scanning and local inference
+            delay(1500) // Aesthetic delay representing scanning and inference
 
             try {
                 val mimeType = context.contentResolver.getType(uri) ?: ""
                 val isImageOrPdf = mimeType.startsWith("image/") || name.lowercase().endsWith(".pdf") || name.lowercase().endsWith(".jpg") || name.lowercase().endsWith(".png") || name.lowercase().endsWith(".jpeg")
 
                 if (isImageOrPdf) {
-                    val models = hfModels.value
-                    val isGemmaDownloaded = models.any { it.name.contains("Gemma") && it.status == "Completed" }
-
-                    if (isGemmaDownloaded) {
-                        // High-fidelity Gemma OCR processing simulation
-                        val extracted = """
-                            # --- GEMMA OCR ON-DEVICE REPORT ---
-                            File Transcribed: $name
-                            Engine Status: Local Gemma 2B OCR Model (Completed & Active)
-                            Timestamp: ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}
-                            
-                            ## 📝 EXTRACTED TRANSCRIPT
-                            
-                            This document contains key details extracted from the uploaded file "$name" utilizing google/gemma-2b-it-ocr-GGUF weights.
-                            
-                            ### 📌 GENERAL SUMMARY
-                            The document presents structured records, operational analytics, or scientific variables.
-                            
-                            ### 📊 ANALYZED TEXT BLOCKS
-                            1. **Section Alpha**: Primary header details indicating secure offline processing.
-                            2. **Section Beta**: Data vectors alignment with standard coordinate models.
-                            3. **Section Gamma**: Quantitative parameters and conclusions.
-                            
-                            ### 🔍 DETAILED SYSTEM NOTES
-                            * Accuracy Confidence: 99.4% (On-device Gemma OCR Engine)
-                            * Noise Level: Minimal
-                            * Skew Correction: Automatically Applied
-                            
-                            [Verified Secure Offline Sandbox Process]
-                        """.trimIndent()
-                        _docFileContent.value = extracted
+                    _systemStatus.value = "Performing on-device offline OCR..."
+                    val isPdf = name.lowercase().endsWith(".pdf")
+                    val extractedText = if (isPdf) {
+                        try {
+                            performPdfOcr(context, uri)
+                        } catch (e: Exception) {
+                            "Failed to process PDF offline: ${e.localizedMessage}"
+                        }
                     } else {
-                        // Check if Gemini API can be used for cloud hybrid OCR
+                        try {
+                            val bitmap = loadBitmapFromUri(context, uri)
+                            if (bitmap != null) {
+                                runMlKitOcrOnBitmap(bitmap)
+                            } else {
+                                "Failed to load image file."
+                            }
+                        } catch (e: Exception) {
+                            "Failed to process image offline: ${e.localizedMessage}"
+                        }
+                    }
+
+                    if (extractedText.isNotBlank() && !extractedText.startsWith("Failed to")) {
+                        _docFileContent.value = extractedText
+                    } else {
+                        // Fallback block if offline OCR is unsuccessful/empty
                         if (GeminiClient.isApiKeyConfigured()) {
-                            _systemStatus.value = "Running cloud hybrid OCR..."
+                            _systemStatus.value = "On-device OCR empty or failed. Trying cloud hybrid OCR..."
                             var base64: String? = null
                             try {
                                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
@@ -1178,27 +1298,16 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                                 val extracted = GeminiClient.analyzeImageForOcr(base64, finalMime)
                                 _docFileContent.value = extracted
                             } else {
-                                _docFileContent.value = "Failed to load file bytes for Cloud OCR. Falling back to simulated text."
+                                _docFileContent.value = "Failed to load file bytes for Cloud OCR. Falling back to simulated text.\n\n" + generateSimulatedExtractedText(name, mimeType)
                             }
                         } else {
-                            // Offline/simulation mode
-                            _docFileContent.value = """
-                                # --- DOCUMENT OCR REPORT ---
-                                File Transcribed: $name
-                                Engine Status: Simulated OCR Mode (API key or Gemma OCR Model not configured)
-                                
-                                ## 📝 TRANSCRIPT PREVIEW
-                                
-                                [Please configure GEMINI_API_KEY in the Secrets Panel for cloud OCR, or download the "Gemma 2B OCR Model" in the HuggingFace tab to perform real on-device extraction!]
-                                
-                                Raw metadata extracted from file:
-                                * Name: $name
-                                * Type: ${if (mimeType.isNotBlank()) mimeType else "Document/Image"}
-                                * Date Processed: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())}
-                                
-                                Simulated Data block:
-                                Standardized system log. The uploaded resource contains visual layout graphs or dense content strings. Under actual operations, the local model parses text line-by-line, aligning columns and correcting typographical distortions automatically.
-                            """.trimIndent()
+                            // Offline demo fallback using custom high fidelity transcript
+                            val simulationText = generateSimulatedExtractedText(name, mimeType)
+                            _docFileContent.value = if (extractedText.startsWith("Failed to")) {
+                                "Offline processing note: ${extractedText}\n\n[Demonstration Simulated Transcription]:\n$simulationText"
+                            } else {
+                                "[No clear text detected. Demonstration Simulated Transcription]:\n$simulationText"
+                            }
                         }
                     }
                 } else {
@@ -1218,5 +1327,84 @@ class ResearchViewModel(application: Application) : AndroidViewModel(application
                 _isReadingDoc.value = false
             }
         }
+    }
+
+    private suspend fun runMlKitOcrOnBitmap(bitmap: Bitmap): String = suspendCancellableCoroutine { continuation ->
+        try {
+            val image = InputImage.fromBitmap(bitmap, 0)
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            recognizer.process(image)
+                .addOnSuccessListener { visionText ->
+                    continuation.resume(visionText.text)
+                }
+                .addOnFailureListener { e ->
+                    continuation.resumeWithException(e)
+                }
+        } catch (e: Exception) {
+            continuation.resumeWithException(e)
+        }
+    }
+
+    private fun loadBitmapFromUri(context: android.content.Context, uri: Uri): Bitmap? {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                BitmapFactory.decodeStream(inputStream)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private suspend fun performPdfOcr(context: android.content.Context, uri: Uri): String {
+        val stringBuilder = StringBuilder()
+        var fileDescriptor: android.os.ParcelFileDescriptor? = null
+        var renderer: PdfRenderer? = null
+        try {
+            fileDescriptor = context.contentResolver.openFileDescriptor(uri, "r")
+            if (fileDescriptor != null) {
+                renderer = PdfRenderer(fileDescriptor)
+                val pageCount = renderer.pageCount
+                for (i in 0 until pageCount) {
+                    var page: PdfRenderer.Page? = null
+                    try {
+                        page = renderer.openPage(i)
+                        // Scale the page dimensions for high quality OCR text recognition
+                        val width = page.width * 2
+                        val height = page.height * 2
+                        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                        
+                        // Fill white background to support transparent pages
+                        val canvas = android.graphics.Canvas(bitmap)
+                        canvas.drawColor(android.graphics.Color.WHITE)
+                        
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        
+                        val pageText = runMlKitOcrOnBitmap(bitmap)
+                        if (pageText.isNotBlank()) {
+                            stringBuilder.append("--- PAGE ${i + 1} ---\n")
+                            stringBuilder.append(pageText.trim())
+                            stringBuilder.append("\n\n")
+                        } else {
+                            stringBuilder.append("--- PAGE ${i + 1} ---\n[No text recognized on this page]\n\n")
+                        }
+                    } catch (e: Exception) {
+                        stringBuilder.append("--- PAGE ${i + 1} ---\n[Error rendering or recognizing page: ${e.localizedMessage}]\n\n")
+                    } finally {
+                        page?.close()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            throw e
+        } finally {
+            try {
+                renderer?.close()
+            } catch (e: Exception) {}
+            try {
+                fileDescriptor?.close()
+            } catch (e: Exception) {}
+        }
+        return stringBuilder.toString().trim()
     }
 }

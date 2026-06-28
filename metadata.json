@@ -1,6 +1,6 @@
 {
-  "name": "Golf Scorecard Digitizer",
-  "description": "Digitize, verify, and store golf scorecards offline using advanced local algorithms or hybrid cloud AI.",
+  "name": "Offline OCR Scanner",
+  "description": "Completely offline on-device OCR scanner to extract text from images and PDF documents instantly.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
