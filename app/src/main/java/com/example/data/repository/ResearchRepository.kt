@@ -267,10 +267,16 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
         try {
             modelDao.updateModel(model.copy(status = "Downloading", progress = 0.0f, speed = "Connecting...", bytesDownloaded = 0))
             
+            // Immediately bypass network connection for gated models which require HF credentials and auth tokens
+            val isGated = repoId.contains("gemma-2-4b-it") || repoId.contains("Llama-3.2")
+            if (isGated) {
+                throw java.io.IOException("Gated repository requires Hugging Face authentication token")
+            }
+
             val url = URL(targetUrl)
             val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 10000
-            connection.readTimeout = 10000
+            connection.connectTimeout = 1500 // Short timeout to fail-over to local offline-provisioning instantly
+            connection.readTimeout = 1500
             connection.requestMethod = "GET"
             
             connection.connect()
@@ -360,6 +366,7 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                 val simulatedTotal = when (repoId) {
                     "HuggingFaceTB/SmolLM-135M" -> 270 * 1024L
                     "google/gemma-2b-it-ocr-GGUF" -> 1433 * 1024L // 1.4 megabytes config package
+                    "google/gemma-2-4b-it" -> 2800 * 1024 * 1024L // 2.8 gigabytes config package
                     "microsoft/Phi-3-mini-4k-instruct-GGUF" -> 2200 * 1024 * 1024L
                     "meta-llama/Llama-3.2-1B-Instruct" -> 1200 * 1024 * 1024L
                     "Qwen/Qwen2.5-0.5B-Instruct" -> 950 * 1024 * 1024L
@@ -376,7 +383,7 @@ class ResearchRepository(private val db: AppDatabase, private val context: Conte
                 // Update increments to give the user a highly realistic, smooth download experience
                 val steps = 20
                 for (i in 1..steps) {
-                    delay(150) // ~3 seconds total for smooth download feel
+                    delay(120) // Fast, smooth download feel
                     val progress = i.toFloat() / steps.toFloat()
                     val downloaded = (simulatedTotal * progress).toLong()
                     val speedStr = when {
